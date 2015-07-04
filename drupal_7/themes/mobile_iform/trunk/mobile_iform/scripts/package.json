@@ -1,0 +1,42 @@
+{
+	"name": "controllers",
+	"title": "App Controllers",
+	"description": "Mobile application page specific functionality.",
+	"version": "0.0.4",
+	"homepage": "http://www.indicia.org.uk/",
+	"author": {
+		"name": "Karols Kazlauskis",
+		"email": "karkaz@ceh.ac.uk",
+		"url": "http://brc.ac.uk"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/NERC-CEH/drupal-mobile-themes"
+	},
+	"bugs": {
+		"url": "https://github.com/NERC-CEH/drupal-mobile-themes/issues"
+	},
+	"licenses": [
+		{
+			"type": "GNU GPL v3",
+			"url": "http://www.gnu.org/licenses/gpl.html"
+		}
+	],
+	"scripts": {
+		"test": "grunt"
+	},
+	"dependencies": {},
+	"devDependencies": {
+		"grunt": "0.4.4",
+		"grunt-contrib-compress": "0.7.0",
+		"grunt-contrib-concat": "0.3.0",
+		"grunt-contrib-uglify": "0.4.0",
+		"grunt-contrib-watch": "0.6.0",
+        "grunt-text-replace": "0.3.12"
+    },
+	"keywords": [
+		"mobile",
+		"indicia",
+		"iRecord"
+	]
+}

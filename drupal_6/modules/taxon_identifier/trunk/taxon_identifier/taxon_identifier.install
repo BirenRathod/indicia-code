@@ -1,0 +1,39 @@
+<?php
+// $Id: $
+
+/**
+ * @file
+ * Implementation of hook_install().
+ */
+function taxon_identifier_install() {
+  drupal_load('module', 'content');
+  content_notify('install', 'taxon_identifier');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function taxon_identifier_uninstall() {
+  drupal_load('module', 'content');
+  content_notify('uninstall', 'taxon_identifier');
+}
+
+/**
+ * Implementation of hook_enable().
+ *
+ * Notify content module when this module is enabled.
+ */
+function taxon_identifier_enable() {
+  drupal_load('module', 'content');
+  content_notify('enable', 'taxon_identifier');
+}
+
+/**
+ * Implementation of hook_disable().
+ *
+ * Notify content module when this module is disabled.
+ */
+function taxon_identifier_disable() {
+  drupal_load('module', 'content');
+  content_notify('disable', 'taxon_identifier');
+}

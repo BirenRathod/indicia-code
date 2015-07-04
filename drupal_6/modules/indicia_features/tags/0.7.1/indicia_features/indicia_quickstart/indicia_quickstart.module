@@ -1,0 +1,43 @@
+<?php
+
+/**
+* Implementation of hook_perm.
+* Declare an online recording permission and a data admin permission. 
+* @return array An array of valid permissions for the module
+*/
+function indicia_quickstart_perm() {
+  $retVal = array('online recording', 'indicia data admin');
+}
+
+/**
+* Implementation of hook_link_alter
+* Remove add comment link from teaser, so it doesn't appear in node views.
+**/
+function indicia_quickstart_link_alter(&$links, $node){
+  if( arg(0) == 'node' && is_numeric(arg(1)) ){
+    return; // halt if full page view
+  }elseif( ! empty($links['comment_add']) ){
+    unset($links['comment_add']);
+  }
+}
+
+/** 
+ * Implementation of hook_menu.
+ * Declares a simple link for my account, otherwise the link is different per user id.
+ */
+function indicia_quickstart_menu() {
+  $items['my-account'] = array(
+    'page callback' => 'my_account',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('post comments'),
+  );
+  return $items;
+}
+
+/**
+ * Redirect the my-account path to the user/n/edit page.
+ */
+function my_account() {
+  global $user;
+  drupal_goto('user/'.$user->uid.'/edit');
+}

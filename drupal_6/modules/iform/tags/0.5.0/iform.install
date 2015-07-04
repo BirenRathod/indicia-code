@@ -1,0 +1,51 @@
+<?php 
+// $Id$
+
+/**
+ * Implementation for hook_schema. Declares the table that is required for storing
+ * iform data.
+ */
+function iform_schema() {
+  $schema['iform'] = array(
+    'description' => 'Table required for storing Indicia prebuilt form parameters.',
+    'fields' => array(
+      'nid' => array(
+        'description' => 'The primary identifier for a node and therefore an iform instance.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE
+      ),
+      'iform' => array(
+        'description' => 'Name of the prebuilt form that is linked to the node.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => ''
+      ),
+      'params' => array(
+        'description' => 'JSON structure containing parameters passed to the form on instantiation.',
+        'type' => 'text',        
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('nid')
+  );
+  return $schema;
+}
+
+function iform_install() {
+  drupal_install_schema('iform');
+}
+
+function iform_uninstall() {
+  drupal_uninstall_schema('iform');
+}
+
+/**
+* Implementation of hook_update_N for version 6.x-1.0. 
+*/
+function iform_update_6100() {
+  $ret = array();
+  db_change_field($ret, 'iform', 'iform', 'iform', array('type' => 'text', 'not null' => FALSE));
+  return $ret;
+}

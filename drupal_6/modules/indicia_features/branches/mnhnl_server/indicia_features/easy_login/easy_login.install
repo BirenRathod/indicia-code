@@ -1,0 +1,72 @@
+<?php
+
+require_once('easy_login.setup.inc');
+
+/**
+ * Implementation of hook_install
+ * Adds a number of fields to the user profile, for storing preferences such as location and species groups.
+ */
+function easy_login_install() {
+  // Load the module file so we can access _easy_login_profile_fields()
+  module_load_include('module', 'easy_login');
+  $fields = _easy_login_profile_fields();
+  foreach($fields as $name => $fieldDef) {
+    easy_login_add_profile_field($name, $fieldDef);
+  }
+}
+
+/**
+ * Implementation of hook_uninstall
+ * Removes the installed profile fields
+ */
+function easy_login_uninstall() {
+  $fields = _easy_login_profile_fields();
+  foreach($fields as $name => $fieldDef) {
+    $field = db_fetch_object(db_query("select fid from {profile_fields} where name='%s'", $name));
+    db_query("delete from {profile_values} where fid=%d", $field->fid);
+    db_query("delete from {profile_fields} where fid=%d", $field->fid);
+  }
+}
+
+/**
+ * Update method for version 6.2. Adds a field for surveys which experts can verify.
+ */
+function easy_login_update_6200() {
+  $ret = array();
+  $fields = _easy_login_profile_fields();
+  easy_login_add_profile_field('profile_surveys_expertise', $fields['profile_surveys_expertise']);
+  return $ret;
+}
+
+/**
+ * Add a field to the list of available user profile fields.
+ */
+function easy_login_add_profile_field($name, $fieldDef) {
+  db_query("INSERT INTO {profile_fields} (title, name, explanation, category, type, weight, required, register, visibility, autocomplete, options, page) VALUES ('%s', '%s', '%s', '%s', '%s', %d, %d, %d, %d, %d, '%s', '%s')",
+      $fieldDef['title'],
+      $name,
+      $fieldDef['explanation'],
+      $fieldDef['category'],
+      $fieldDef['type'],
+      $fieldDef['weight'],
+      $fieldDef['required'],
+      $fieldDef['register'],
+      $fieldDef['visibility'],
+      $fieldDef['autocomplete'],
+      $fieldDef['options'],
+      $fieldDef['page']
+  );
+  if (isset($fieldDef['checkboxes']) && $fieldDef['checkboxes'])
+    // Taxon groups use multi-select checkboxes
+    db_query("INSERT INTO {profile_checkboxes} (fid, type, delimiter) values (%d, 'checkboxes', ',')", db_last_insert_id('profile_fields', 'fid'));
+}
+
+function easy_login_enable() {
+  /*drupal_set_message(t('You have enabled the Easy Login feature which lets people register and login using an OpenID, Twitter or Facebook account. To enable '.
+      'twitter signin please follow the instructions from step 4 at <a href="http://drupal.org/node/649714">Sign in to Drupal with your Twitter Account</a>. '.
+      'If you are developing on a localhost webserver, then use http://127.0.0.1 instead of http://localhost in the registration form for both the Callback URL and '.
+      'Website parameters. Also note that the Callback URL should have a trailing slash when you specify it, e.g. "http://127.0.0.1/instant/twitter/oauth/".'));
+  drupal_set_message(t('To allow Facebook sign-in, you must enter your Facebook Application details at '.l('Facebook Connect Settings', 'admin/build/fb/fb_app_create').
+      ' then select the app as the Primary Connect Application on the Facebook Connect tab. You can request an Application ID for facebook at '.
+      l('http://developers.facebook.com/setup','http://developers.facebook.com/setup').'.'));*/
+}

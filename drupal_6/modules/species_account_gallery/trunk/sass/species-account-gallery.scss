@@ -1,0 +1,59 @@
+@import "compass/utilities/lists";
+@import "compass/css3";
+
+ul.species-gallery-list {
+  @include no-bullet();
+
+  li {
+    background: none;
+
+    span {
+      color: #336699;
+      font-size: 1.2em;
+    }
+
+    span.expanded {
+      background: url(../nuvola/1downarrow.png) left no-repeat;
+      padding: 0.2em 30px;
+      cursor: pointer;
+    }
+    span.collapsed, span.not-loaded {
+      background: url(../nuvola/1rightarrow.png) left no-repeat;
+      padding: 0.2em 30px;
+      cursor: pointer;
+    }
+    span.leaf {
+      background: none;
+      color: #777777;
+      font-weight: bold;
+      margin-left: 8px;
+    }
+    span.loading{
+      background: url(../ajax-loader.gif) left no-repeat;
+    }
+  }
+  li.species-gallery-image {
+    @include inline-block();
+    margin: 0 8px 8px 8px;
+    padding: 0;
+    img {
+      border: solid 2px #777777;
+    }
+  }
+  li.leaf {
+    border: solid silver 1px;
+    @include box-shadow();
+  }
+  
+  fieldset {
+    margin: 3px 0 0;
+    @include inline-block;
+    width: 60%;
+    vertical-align: top;
+  }
+  
+  fieldset.collapsed {
+    border: none;
+  }
+
+}

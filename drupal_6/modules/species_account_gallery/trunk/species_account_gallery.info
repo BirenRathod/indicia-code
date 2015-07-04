@@ -1,0 +1,6 @@
+name=Species account gallery
+description="A gallery browser for species accounts"
+package="Species accounts"
+dependencies[] = content
+dependencies[] = imagecache
+core=6.x

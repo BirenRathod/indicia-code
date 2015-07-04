@@ -1,0 +1,22 @@
+﻿
+.IndiciaQuestionWrap {
+    clear: both;
+    margin: 5px;
+}
+
+.IndiciaQuestionLabel {
+    width: 15em;
+    display: inline-block;
+}
+
+.IndiciaQuestion {
+}
+
+.IndiciaError {
+    color: #960000;
+    font-weight: bold;
+}
+
+.IndiciaWideTextBox {
+    width: 500px;
+}

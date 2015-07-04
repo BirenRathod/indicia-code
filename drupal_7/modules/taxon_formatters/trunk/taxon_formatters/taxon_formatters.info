@@ -1,0 +1,7 @@
+; $Id$
+name = Taxon Formatters
+description = "Defines a formatter that can display output from various taxonomic webservices based on the content of an underlying taxon identifier field."
+dependencies[] = field
+dependencies[] = taxon_identifier
+package = Fields
+core = 7.x

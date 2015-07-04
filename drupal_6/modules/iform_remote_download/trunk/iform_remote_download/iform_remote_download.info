@@ -1,0 +1,7 @@
+name = Indicia remote download
+description = Allows remote applications to sign into an iform enabled Drupal site to download records.
+package = "Indicia"
+core = 6.x
+dependencies[] = iform
+dependencies[] = iform_mobile_auth
+version = "6.x-1.0"

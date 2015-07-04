@@ -1,0 +1,34 @@
+#header {
+  padding-top: 0;
+}
+
+#header #sitename {
+  margin: 1em 0 0.5em 1em;
+}
+
+#secondary-links {
+  float: right;
+}
+
+.gallery-img {
+  text-align: center;
+  padding: 0.5em;
+  margin: 0.5em;
+  display:-moz-inline-stack;
+  display:inline-block;
+  zoom:1;
+  *display:inline;
+}
+
+h2 {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+a h2 {
+  color: #006699;
+}
+
+a:hover h2 {
+  text-decoration: underline;
+}

@@ -1,0 +1,15 @@
+name = Instant Indicia Basic Theme
+description = A Framework based sub-theme for getting Instant Indicia sites up and running
+version = VERSION
+core = 6.x
+engine = phptemplate
+base theme = framework
+stylesheets[all][] = instant_indicia.css
+
+regions[left] = Left sidebar
+regions[right] = Right sidebar
+regions[content] = Content
+regions[header] = Header
+regions[nav] = Navigation
+regions[footer] = Footer
+

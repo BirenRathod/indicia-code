@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+<params>
+<param name="title" type="text" default="Observations Data Entry" label="Title" description="Title of Survey"/>
+<param name="intro" type="text" label="Introduction" description="Introductory paragraph - name of internationalisation string in language file"/>
+<param name="map_intro" type="text" label="Map Introduction" description="Introductory paragraph for distribution map - name of internationalisation string in language file"/>
+<param name="filtered_by_taxon" type="text" label="Filtered by taxon text" description="Extendion to introductory paragraph for distribution map when filtered by a taxon - name of internationalisation string in language file"/>
+<param name="thank_you" type="text" label="Thank you for record" description="Thank you message displayed after record contribution - name of internationalisation string in language file"/>
+<param name="taxon_list_id" label = "Taxon List ID" type="text" description="The list ID of the species list you want to allow data entry for." />
+<param name="taxon_selector" label="Method of selecting a species" type="list" description="Selection of a species can be by auto-complete, a list of pictures, or a treeview">
+	<option value="list">List</option>
+	<option value="tree">Tree</option>
+	<option value="auto">Auto-complete</option>
+</param>
+<param name="google_map_key" label="Google Maps Key" type="text" description="API key for Google Maps"/>
+<param name="geoplanet_api_key" label="Geoplanet API Key" type="text" description="API key for GeoPlanet location lookups"/>
+<param name="pref_area" label="Preferred Area" type="text" description="Preferred area for place search"/>
+<param name="country" label="Preferred Country" type="text" description="Preferred country for place search"/>
+<param name="language_id" label="Place name language" type="text" default="en-GB" description="Language used for places returned by place name search."/>
+<param name="init_x" label="Initial Map X" type="text" description="Google Maps x value for initial map display"/>
+<param name="init_y" label="Initial Map Y" type="text" description="Google Maps y value for initial map display"/>
+<param name="init_zoom" label="Initial Map Zoom" type="text" description="Google Maps zoom value for initial map display (0-18)"/>
+<param name="map_feature_type" label="Feature Type for map" type="text" description="Name of the WFS feature type that will be displayed on the final page of the wizard as a map." />
+<param name="geoserver_url" label="GeoServer URL" type="text" description="URL of GeoServer which WFS feature type is loaded from" />
+<param name="website_id" label = "Website ID" type="text" description="The ID of the registered Indicia website you are capturing data for." />
+<param name="password" label = "Website Password" type="password" description="The password of the regsitered Indicia website you are capturing data for." />
+<param name="survey_id" label = "Survey ID" type="text"
+	description="The ID of the survey the data should be entered into. If this is blank, then the user will be asked to select a survey during data entry." />
+<param name="indicia_url" type="text" label="Indicia Core URL" description="URL of Indicia Core Module, excluding the trailing /"/>
+<param name="custom_attributes" label = "Custom Attributes" type="textarea" description="List of custom attributes" rows="6" cols="40"/>
+</params>
+</config>

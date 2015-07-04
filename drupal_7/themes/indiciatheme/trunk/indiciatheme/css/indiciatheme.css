@@ -1,0 +1,324 @@
+/* Use reference colours from the default colour scheme here so that the colors module can overwrite them */
+/* Standard spacing between buttons, panels etc */
+/* No files to import found in custom/variables/*.* */
+/** banner area improvements **/
+@media screen and (max-width: 600px) {
+  /* line 10, sass/indiciatheme.scss */
+  #logo {
+    /* logo occupies own line if narrow */
+    float: none;
+  }
+}
+/* Remove restriction on banner height and width */
+/* line 17, sass/indiciatheme.scss */
+header#header, div#branding {
+  max-height: none;
+  text-transform: none;
+}
+
+/* line 21, sass/indiciatheme.scss */
+header#header {
+  width: 100%;
+}
+/* line 23, sass/indiciatheme.scss */
+header#header div#branding {
+  width: 100%;
+}
+/* line 26, sass/indiciatheme.scss */
+header#header div.region {
+  width: 25%;
+  margin: 0 0 0 -25%;
+  padding: 0;
+}
+/* line 32, sass/indiciatheme.scss */
+header#header div.region nav {
+  float: right;
+}
+/* line 34, sass/indiciatheme.scss */
+header#header div.region nav .block-content {
+  padding: 0;
+}
+
+/** Adaptive theme panel layouts **/
+/* line 45, sass/indiciatheme.scss */
+.at-panel .region {
+  padding-right: 10px;
+  /* Prevent padding messing up layout */
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+/* line 49, sass/indiciatheme.scss */
+.at-panel .region label {
+  /* labels in columns take up 1 line */
+  display: block;
+  margin-bottom: 0;
+  width: auto;
+}
+/* line 55, sass/indiciatheme.scss */
+.at-panel .region textarea, .at-panel .region #map-help {
+  /* full width boxes, accounting for border, padding etc*/
+  width: 100%;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+/* line 60, sass/indiciatheme.scss */
+.at-panel .region .control-box nobr {
+  display: -moz-inline-stack;
+  display: inline-block;
+  vertical-align: middle;
+  *vertical-align: auto;
+  zoom: 1;
+  *display: inline;
+}
+/* line 62, sass/indiciatheme.scss */
+.at-panel .region .control-box nobr span * {
+  display: -moz-inline-stack;
+  display: inline-block;
+  vertical-align: middle;
+  *vertical-align: auto;
+  zoom: 1;
+  *display: inline;
+}
+/* line 66, sass/indiciatheme.scss */
+.at-panel .region .helpText, .at-panel .region p.inline-error {
+  /* Controls on separate line to labels, so remove margin for the helptext and errors */
+  margin-left: 0;
+}
+/* line 71, sass/indiciatheme.scss */
+.at-panel .region:last-child {
+  padding-right: 0;
+}
+
+/** Buttons **/
+/* Sassify the buttons */
+/* line 80, sass/indiciatheme.scss */
+input[type=submit], input[type=button], button, .indicia-button, a.indicia-button, a.button {
+  color: white;
+  *zoom: 1;
+  filter: progid:DXImageTransform.Microsoft.gradient(gradientType=0, startColorstr='#FF00679A', endColorstr='#FF002334');
+  background: -webkit-gradient(linear, 50% 0%, 50% 100%, color-stop(0%, #00679a), color-stop(70%, #00578a));
+  background: -webkit-linear-gradient(#00679a, #00578a 70%);
+  background: -moz-linear-gradient(#00679a, #00578a 70%);
+  background: -o-linear-gradient(#00679a, #00578a 70%);
+  background: linear-gradient(#00679a, #00578a 70%);
+  -webkit-box-shadow: #009ae7 0 1px 0 inset;
+  -moz-box-shadow: #009ae7 0 1px 0 inset;
+  box-shadow: #009ae7 0 1px 0 inset;
+  border: 1px solid #004771;
+  color: white;
+  text-shadow: #001119 0 -1px 0;
+  font-size: 1em;
+  padding: 0 0.25em;
+  display: inline-block;
+  cursor: pointer;
+  -webkit-border-radius: 4px;
+  -moz-border-radius: 4px;
+  -ms-border-radius: 4px;
+  -o-border-radius: 4px;
+  border-radius: 4px;
+  margin-right: 10px;
+}
+/* line 15, ../../../../../../../../Ruby193/lib/ruby/gems/1.9.1/gems/sassy-buttons-0.2.6/stylesheets/sassy-buttons/_sassy-button-pseudo-states.sass */
+input[type=submit]:hover, input[type=button]:hover, button:hover, .indicia-button:hover, a.indicia-button:hover, a.button:hover {
+  text-decoration: none;
+}
+/* line 18, ../../../../../../../../Ruby193/lib/ruby/gems/1.9.1/gems/sassy-buttons-0.2.6/stylesheets/sassy-buttons/_sassy-button-pseudo-states.sass */
+input[type=submit]:hover, input[type=button]:hover, button:hover, .indicia-button:hover, a.indicia-button:hover, a.button:hover {
+  background-color: #004771;
+  background: -webkit-gradient(linear, 50% 0%, 50% 100%, color-stop(3%, #005681), color-stop(75%, #004771));
+  background: -webkit-linear-gradient(#005681 3%, #004771 75%);
+  background: -moz-linear-gradient(#005681 3%, #004771 75%);
+  background: -o-linear-gradient(#005681 3%, #004771 75%);
+  background: linear-gradient(#005681 3%, #004771 75%);
+}
+/* line 21, ../../../../../../../../Ruby193/lib/ruby/gems/1.9.1/gems/sassy-buttons-0.2.6/stylesheets/sassy-buttons/_sassy-button-pseudo-states.sass */
+input[type=submit]:active, input[type=button]:active, button:active, .indicia-button:active, a.indicia-button:active, a.button:active {
+  -webkit-box-shadow: #003d61 0 1px 2px inset;
+  -moz-box-shadow: #003d61 0 1px 2px inset;
+  box-shadow: #003d61 0 1px 2px inset;
+}
+/* line 6, ../../../../../../../../Ruby193/lib/ruby/gems/1.9.1/gems/sassy-buttons-0.2.6/stylesheets/sassy-buttons/_sassy-button-pseudo-states.sass */
+input[type=submit].disabled, input[type=submit][disabled], input[type=button].disabled, input[type=button][disabled], button.disabled, button[disabled], .indicia-button.disabled, .indicia-button[disabled], a.indicia-button.disabled, a.indicia-button[disabled], a.button.disabled, a.button[disabled] {
+  filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=60);
+  opacity: 0.6;
+  background: #00578a;
+  cursor: default;
+  -webkit-box-shadow: none;
+  -moz-box-shadow: none;
+  box-shadow: none;
+}
+
+/* line 87, sass/indiciatheme.scss */
+.buttons input[type=submit], .buttons input[type=button], .buttons button {
+  font-size: 1.1em;
+  padding: 0.25em;
+  display: inline-block;
+  cursor: pointer;
+  -webkit-border-radius: 4px;
+  -moz-border-radius: 4px;
+  -ms-border-radius: 4px;
+  -o-border-radius: 4px;
+  border-radius: 4px;
+}
+
+/* line 91, sass/indiciatheme.scss */
+.form-submit:hover {
+  color: white;
+}
+
+/** Menu configuration **/
+/* Menus on same line */
+/* line 98, sass/indiciatheme.scss */
+#block-superfish-1 {
+  float: left;
+}
+
+/* line 101, sass/indiciatheme.scss */
+#block-system-user-menu {
+  float: right;
+}
+
+/* Correct a pixture reloaded bug with menu arrow placement */
+/* line 106, sass/indiciatheme.scss */
+div#menu-bar {
+  font-size: 120%;
+}
+/* line 108, sass/indiciatheme.scss */
+div#menu-bar ul.sf-menu li a.sf-with-ul {
+  padding: 0 25px;
+}
+
+/* line 112, sass/indiciatheme.scss */
+.nav ul.sf-menu.sf-horizontal ul li {
+  background: #fffdff;
+  border-left: solid 1px #333333;
+  border-right: solid 1px #333333;
+}
+
+/* line 117, sass/indiciatheme.scss */
+.nav ul.sf-menu.sf-horizontal ul li.last {
+  border-bottom: solid 1px #333333;
+}
+
+/** Apply tweaks and bugfixes **/
+/* Line up lock icons */
+/* line 124, sass/indiciatheme.scss */
+input, .unlocked-icon, .locked-icon {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+/* remove legend background colour (from pixture reloaded's link colour) */
+/* line 129, sass/indiciatheme.scss */
+fieldset legend {
+  background-color: transparent;
+  color: #333333;
+  padding: 0 10px;
+}
+
+/* Fixes a bug where Google attributions appear 1 character wide therefore go up the middle of the map in IE on some D7 templates. We 
+   can't use a conditional stylesheet, as it also applies to IE10 which does not support conditional comments. */
+/* line 137, sass/indiciatheme.scss */
+.gm-style .gmnoprint {
+  width: auto !important;
+}
+
+/* Fix potential for datepicker div to appear as blob at bottom of screen, and to go under the menu when it pops up */
+/* line 142, sass/indiciatheme.scss */
+div#ui-datepicker-div {
+  display: none;
+  z-index: 2000 !important;
+}
+
+/* Remove pixture reloaded margin on report tables */
+/* line 148, sass/indiciatheme.scss */
+table.report-grid {
+  margin: 0;
+}
+
+/* A small font option, e.g. for wide habitat drop downs */
+/* line 153, sass/indiciatheme.scss */
+.small-font, .small-font * {
+  font-size: 9px;
+  font-family: tahoma,sans-serif;
+}
+
+/* Two col grid layout in iforms */
+/* line 159, sass/indiciatheme.scss */
+#entry_form .at-panel {
+  margin: 0 4px;
+}
+/* line 162, sass/indiciatheme.scss */
+#entry_form .at-panel .two-50 label {
+  display: block;
+  width: auto;
+}
+/* line 165, sass/indiciatheme.scss */
+#entry_form .at-panel .two-50 label.olButton {
+  display: inline-block;
+}
+/* line 169, sass/indiciatheme.scss */
+#entry_form .at-panel .two-50 .control-box label {
+  display: inline;
+}
+/* line 172, sass/indiciatheme.scss */
+#entry_form .at-panel .two-50 textarea {
+  width: 90%;
+}
+/* line 175, sass/indiciatheme.scss */
+#entry_form .at-panel .two-50 .helpText {
+  margin-left: 0;
+}
+/* line 178, sass/indiciatheme.scss */
+#entry_form .at-panel .two-50 .hierarchy-select {
+  display: block;
+}
+/* line 181, sass/indiciatheme.scss */
+#entry_form .at-panel .two-50 .page-notice {
+  margin: 0 0.5em 0 0;
+}
+/* line 184, sass/indiciatheme.scss */
+#entry_form .at-panel .two-50 p.inline-error {
+  margin: 0;
+  display: -moz-inline-stack;
+  display: inline-block;
+  zoom: 1;
+  *display: inline;
+}
+
+/* line 194, sass/indiciatheme.scss */
+.region {
+  padding: 1em;
+  box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+}
+
+/* line 200, sass/indiciatheme.scss */
+.record-details-fields div span:first-child {
+  width: 40%;
+  font-weight: bold;
+  float: left;
+}
+
+/* line 206, sass/indiciatheme.scss */
+.record-details-fields div span:last-child {
+  width: 58%;
+  float: right;
+}
+
+/* Fix an issue in Chrome / Adaptive theme where the grid action buttons overflow the grid */
+/* line 212, sass/indiciatheme.scss */
+.action-button img {
+  max-width: inherit;
+}
+
+/* line 216, sass/indiciatheme.scss */
+#map-footer {
+  font-size: 12px;
+}
+
+/** import any custom override files **/
+/* No files to import found in custom/*.* */

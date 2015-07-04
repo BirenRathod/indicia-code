@@ -1,0 +1,6 @@
+; $Id$
+name = GBIF Map Formatter
+description = "Defines a formatter for the taxon formatters module that can display GBIF species maps."
+dependencies[] = taxon_formatters
+package = Taxon CCK
+core = 6.x

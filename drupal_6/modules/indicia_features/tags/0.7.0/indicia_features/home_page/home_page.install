@@ -1,0 +1,7 @@
+<?php
+
+function home_page_enable() {
+  variable_set('site_frontpage', 'home');
+  // need to flush caches for the home page to be picked up.
+  drupal_flush_all_caches();
+}

@@ -1,0 +1,7 @@
+; $Id$
+name = NBN Dynamic Map Formatter
+description = "Defines a formatter for the taxon formatters module that can display NBN WMS maps overlaid onto OpenLayers maps."
+dependencies[] = taxon_formatters
+dependencies[] = iform
+package = Taxon CCK
+core = 6.x

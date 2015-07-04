@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE install SYSTEM "http://dev.joomla.org/xml/1.5/component-install.dtd">
+
+<install type="component" version="1.5">
+	<name>Indicia</name>
+	<creationDate>March 2009</creationDate>
+	<author>John van Breda</author>
+	<authorUrl>http://www.biodiverseit.co.uk</authorUrl>
+	<license>GPL 3.0</license>
+	<version>0.1</version>
+	<description>Simple Indicia based data entry for Joomla</description>
+	<administration>
+		<menu>Indicia</menu>
+	</administration>
+	<install />
+	<uninstall />
+</install>

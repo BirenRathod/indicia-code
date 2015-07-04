@@ -1,0 +1,58 @@
+<?php
+
+/**
+ * @file
+ * Install and uninstall hooks for the appcache module.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function appcache_uninstall() {
+  variable_del("appcache_enabled");
+  variable_del("appcache_automatic");
+  variable_del("appcache_cache");
+  variable_del("appcache_cache_query");
+  variable_del("appcache_network");
+  variable_del("appcache_fallback");
+  variable_del("appcache_validate_endpoint");
+}
+
+/**
+ * Implements hook_requirements().
+ */
+function appcache_requirements($phase) {
+  if ($phase != 'runtime') {
+    return array();
+  }
+
+  $requirements = array();
+  module_load_include('inc', 'appcache', 'appcache.manifest');
+  $t = get_t();
+
+  $result = appcache_manifest_validate();
+
+  if (!empty($result)) {
+    $requirements['appcache_manifest'] = array(
+      'title' => $t('HTML5 Application Manifest'),
+      'value' => ($result['isValid'] ? $t('Manifest validated') : $t('Invalid manifest')),
+      'severity' => ($result['isValid'] ? REQUIREMENT_OK : REQUIREMENT_ERROR),
+    );
+
+    if (!$result['isValid']) {
+      $errors = array();
+      for ($line = 0; $line < sizeof($result['errors']); $line++) {
+        $error = $result['errors'][$line];
+        if (is_array($error)) {
+          $errors[] = t('Line !line: !error %content', array('!line' => $line + 1, '!error' => $error['error'], '%content' => $error['content']));
+        }
+      }
+      $error_text = theme('item_list', array('type' => 'ul', 'items' => $errors));
+
+      $requirements['appcache_manifest']['description'] = $t('The HTML5 Application Manifest is not valid. Please <a href="@appcache-config">verify your configuration</a>.', array('@appcache-config' => url('admin/config/services/appcache'))) . $error_text;
+    }
+  }
+
+  return $requirements;
+}
+

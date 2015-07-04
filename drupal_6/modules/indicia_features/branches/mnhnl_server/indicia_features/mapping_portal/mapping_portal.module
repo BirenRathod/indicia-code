@@ -1,0 +1,3 @@
+<?php
+
+include_once('mapping_portal.features.inc');

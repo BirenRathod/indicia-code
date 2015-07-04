@@ -1,0 +1,6 @@
+; $Id$
+name = NBN Designations Formatter
+description = "Defines a formatter for the taxon formatters module that can display taxon designation information from the NBN Web Services."
+core = 7.x
+package = Fields
+dependencies[] = taxon_formatters

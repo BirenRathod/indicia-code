@@ -1,0 +1,246 @@
+<?php
+/**
+ * @file
+ * Defines a formatter for the taxon formatters module that can display NBN
+ * Gateway maps.
+ */
+
+/**
+ * Implements hook_taxon_formatter_types().
+ */
+function nbn_atlasmap_taxon_formatter_types() {
+  $formatter = array(
+    'nbn_atlasmap' => array(
+      'title' => t('NBN Atlas Map'),
+      // Field type is tvk, tlick or brc (+GBIF?).
+      'field_type' => 'tvk',
+      // Function that generates the form using Forms API, with arguments for
+      // the current settings values, type name (e.g. nbn_atlasmap) and optional
+      // $args.
+      'form_callback' => 'nbn_atlasmap_taxon_formatter_settings_form',
+      // Can be used to pass arguments to the form.
+      'form_args' => array(),
+    ),
+  );
+  return $formatter;
+}
+
+/**
+ * This defines the drupal form used for the settings of this formatter type.
+ */
+function nbn_atlasmap_taxon_formatter_settings_form($settings, $type, $args) {
+  if ($type == 'nbn_atlasmap') {
+    // Apply some defaults.
+    $settings = array_merge(array(
+      'imagesize' => 3,
+    ), $settings);
+    
+    // Create list of imagesizes.
+    $imagesizes = nbn_atlasmap_imagesizes();
+    foreach($imagesizes as $imagesize => $dimensions) {
+      $imagesize_options[$imagesize] = $dimensions['width'] . ' x ' . $dimensions['height'];
+    }
+       
+    $form = array();
+    $form['imagesize'] = array(
+      '#type' => 'select',
+      '#title' => t('Image size (px)'),
+      '#description' => t('Size of the map in pixels.'),
+      '#required' => TRUE,
+      '#default_value' => $settings['imagesize'],
+      '#options' => $imagesize_options,
+    );
+
+    $form['datasets'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Datasets'),
+      '#description' => t('List the keys of the datasets to restrict the query to, one per line, or leave blank for no dataset filter.'),
+      '#required' => FALSE,
+      '#default_value' => isset($settings['datasets']) ? $settings['datasets'] : '',
+      '#wysiwyg' => FALSE,
+    );
+    // @todo validate.
+    $form['startyear'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Start year'),
+      '#description' => t('A 4-digit year between 1800 and the current year to filter records by. Left blank, defaults to 1800.'),
+      '#required' => FALSE,
+      '#default_value' => isset($settings['startyear']) ? $settings['startyear'] : '',
+    );
+    // @todo validate.
+    $form['endyear'] = array(
+      '#type' => 'textfield',
+      '#title' => t('End year'),
+      '#description' => t('A 4-digit year between 1800 and the current year to filter records by. Must be equal to or greater than the start year. Left blank, defaults to the curren year.'),
+      '#required' => FALSE,
+      '#default_value' => isset($settings['endyear']) ? $settings['endyear'] : '',
+    );
+    // @todo validate.
+    $form['fillcolour'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Fill colour'),
+      '#description' => t('A 6-digit RGB hex code (000000 - FFFFFF) colour to fill squares. Defaults to black if left balnk.'),
+      '#required' => FALSE,
+      '#default_value' => isset($settings['fillcolour']) ? $settings['fillcolour'] : '',
+    );
+    // @todo validate.
+    $form['outlinecolour'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Outline colour'),
+      '#description' => t('A 6-digit RGB hex code (000000 - FFFFFF) colour to outline squares. Defaults to black if left balnk.'),
+      '#required' => FALSE,
+      '#default_value' => isset($settings['outlinecolour']) ? $settings['outlinecolour'] : '',
+    );
+    $form['background'] = array(
+      '#type' => 'select',
+      '#title' => t('Background'),
+      '#description' => t('Select the background layer to display.'),
+      '#required' => TRUE,
+      '#options' => array(
+        'gb' => 'Outline of Great Britain only',
+        'gbi' => 'Outline of Great Britain and Ireland',
+        'gb100kgrid' => 'Outline of Great Britain with 100km grid lines.',
+        'gbi100kgrid' => 'Outline of Great Britain and Ireland with 100km grid lines.',
+        'vicecounty' => 'Outline of Watsonian vice county boundaries.',
+      ),
+      '#default_value' => isset($settings['background']) ? $settings['background'] : '',
+    );
+  }
+  return $form;
+}
+
+/**
+ * Implements the output theme function.
+ */
+function theme_nbn_atlasmap_taxon_formatter_output($params) {
+  $tvk = trim($params['item']['value']);
+  $preset = $params['preset'];
+  
+  // Early return if no TVK.
+  if (empty($tvk)) {
+    return '';
+  }
+  
+  // Obtain map size in pixels.
+  $sizes = nbn_atlasmap_imagesizes();
+  $imagesize = $preset['settings']['imagesize'];
+  $width = $sizes[$imagesize]['width'] + 2 * 8;
+  $height = $sizes[$imagesize]['height'] + 2 * 8;
+  
+  $map_url = nbn_atlasmap_build_map_url($tvk, $preset);
+  $ack_url = nbn_atlasmap_build_ack_url($tvk, $preset);
+  $nbn = l('NBN Gateway', 'https://data.nbn.org.uk');
+  $t_and_c = l('terms and conditions', 'https://data.nbn.org.uk/Terms');
+ 
+  
+  $r = '<div class="nbn-atlasmap-container">';
+  $r .= '<p>Distribution maps are provided by the ' . $nbn . ' using the listed '
+          . 'datasets and are subject to NBN '. $t_and_c . '.</p>';
+  $r .= '<div class="nbn-atlasmap-map">'
+          . '<iframe src="' . $map_url . '" width="' . $width . '" height="' . $height .'">'
+          . '</iframe>'
+        . '</div>';
+  $r .= '<div class="nbn-atlasmap-ack">'
+          . '<iframe src="' . $ack_url . '" height="' . $height . '"></iframe>'
+        . '</div>';
+  $r .= '</div>';
+  
+  return $r;
+}
+
+
+/**
+ * Implements hook_theme().
+ */
+function nbn_atlasmap_theme() {
+  $theme = array();
+  $theme["nbn_atlasmap_taxon_formatter_output"] = array(
+    'arguments' => array('element' => NULL),
+  );
+  return $theme;
+}
+
+/**
+ * Internal method to create the url string required for a map request.
+ */
+function nbn_atlasmap_build_map_url($tvk, $preset) {
+  $url = "https://gis.nbn.org.uk/SingleSpecies/$tvk/atlas/circle/map";
+  $query = '?format=png';
+  
+  if (!empty($preset['settings']['background'])) {
+    $query .= '&background=' . $preset['settings']['background'];
+  }
+    
+  if (!empty($preset['settings']['datasets'])) {
+    $datasets = explode("\n", $preset['settings']['datasets']);
+    // Clean the dataset keys.
+    foreach ($datasets as &$dataset) {
+      $dataset = preg_replace("/[^A-Z0-9]/", "", $dataset);
+    }
+    $dataset_list = implode(",", $datasets);
+    $query .= '&datasets=' . $dataset_list;
+  }
+  
+  if (!empty($preset['settings']['startyear'])) {
+    $query .= '&startyear=' . $preset['settings']['startyear'];
+  }
+    
+  if (!empty($preset['settings']['endyear'])) {
+    $query .= '&endyear=' . $preset['settings']['endyear'];
+  }
+    
+  if (!empty($preset['settings']['fillcolour'])) {
+    $query .= '&fillcolour=' . $preset['settings']['fillcolour'];
+  }
+    
+  if (!empty($preset['settings']['outlinecolour'])) {
+    $query .= '&outlinecolour=' . $preset['settings']['outlinecolour'];
+  }
+    
+  if (!empty($preset['settings']['imagesize'])) {
+    $query .= '&imagesize=' . $preset['settings']['imagesize'];
+  }
+  
+  return $url . $query;
+}
+
+/**
+ * Internal method to create the url string required for an acknowledgement request.
+ */
+function nbn_atlasmap_build_ack_url($tvk, $preset) {
+  $url = "https://gis.nbn.org.uk/SingleSpecies/$tvk/atlas/circle/acknowledgement";
+  $query = '';
+
+  if (!empty($preset['settings']['datasets'])) {
+    $datasets = explode("\n", $preset['settings']['datasets']);
+    // Clean the dataset keys.
+    foreach ($datasets as &$dataset) {
+      $dataset = preg_replace("/[^A-Z0-9]/", "", $dataset);
+    }
+    $dataset_list = implode(",", $datasets);
+    $query .= '?datasets=' . $dataset_list;
+  }
+  
+  return $url . $query;
+}
+
+function nbn_atlasmap_imagesizes() {
+  return array(
+    '1' => array('width' => '100', 'height' => '135'),
+    '2' => array('width' => '200', 'height' => '270'),
+    '3' => array('width' => '300', 'height' => '405'),
+    '4' => array('width' => '400', 'height' => '540'),
+    '5' => array('width' => '500', 'height' => '675'),
+    '6' => array('width' => '600', 'height' => '810'),
+    '7' => array('width' => '700', 'height' => '945'),
+    '8' => array('width' => '800', 'height' => '1080'),
+    '9' => array('width' => '900', 'height' => '1215'),
+    '10' => array('width' => '1000', 'height' => '1350'),
+    '11' => array('width' => '1100', 'height' => '1485'),
+    '12' => array('width' => '1200', 'height' => '1620'),
+    '13' => array('width' => '1300', 'height' => '1755'),
+    '14' => array('width' => '1400', 'height' => '1890'),
+    '15' => array('width' => '1500', 'height' => '2025'),
+  );
+  
+}

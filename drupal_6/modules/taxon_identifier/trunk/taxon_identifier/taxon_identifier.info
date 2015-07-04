@@ -1,0 +1,7 @@
+; $Id: $
+name = Taxon Identifiers
+description = Defines a CCK field type for taxon identifiers such as taxon version keys
+dependencies[] = content
+package = Taxon CCK
+core = 6.x
+

@@ -1,0 +1,32 @@
+<?php
+// $Id$
+
+/** 
+ * Implementation of hook_install.
+ * Create default variables.
+ */
+function species_account_importer_install() {
+  require_once ('species_account_importer.defines.inc');
+  variable_set('sai_species_regex', SAI_DEFAULT_SPECIES_REGEX);
+  variable_set('sai_species_ignore_regex', SAI_DEFAULT_IGNORE_REGEX);
+  variable_set('sai_ranks', SAI_DEFAULT_RANKS);
+  variable_set('sai_rank_regexes', SAI_DEFAULT_RANK_REGEXES);
+  variable_set('sai_extract_genus', SAI_DEFAULT_EXTRACT_GENUS);
+  variable_set('sai_extract_authority_field', SAI_DEFAULT_EXTRACT_AUTHORITY_FIELD);
+}
+
+/** 
+ * Implementation of hook_uninstall.
+ * Clean up variables.
+ */
+function species_account_importer_uninstall() {
+  variable_del('sai_species_regex');
+  variable_del('sai_species_ignore_regex');
+  variable_del('sai_ranks');
+  variable_del('sai_rank_regexes');
+  variable_del('sai_last_imported_type');
+  variable_del('sai_vid');
+  variable_del('sai_extract_genus');
+  variable_del('sai_extract_authority_field');
+}
+

@@ -1,0 +1,214 @@
+<?php
+
+include_once('summary_reports.features.inc');
+
+/**
+ * Implement hook_nodeapi.
+ * Replaces the view output for summary report with the appropriate Indicia report.
+ * @param type $node
+ * @param type $op
+ * @param type $a3
+ * @param type $a4 
+ */
+function summary_reports_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  if ($node->type==='summary_report')
+    switch ($op) {
+      case 'view':
+        $node->content=array(
+          'myfield'=>array(
+            '#value'=>summary_report_build($node)
+          )
+        );
+        break;
+      case 'prepare':
+        drupal_add_js(drupal_get_path('module', 'summary_reports').'/summary_reports_edit.js');
+        break;
+    }
+}
+
+/*
+* Implementation of hook_field_formatter_info().
+* Declare a formatter to output the raw value of a field.
+*/
+function summary_reports_field_formatter_info() {
+  $formatters=array('raw' => array(
+      'label' => t('Raw'),
+      'field types' => array('text')
+  ));
+  return $formatters;
+}
+
+/**
+ * Implement hook_theme.
+ * Generates theme functions for each formatter preset.
+ */
+function summary_reports_theme() {
+  $theme = array('summary_reports_formatter_raw' => array(
+      'arguments' => array('element' => NULL),
+      'function' => 'theme_summary_reports_raw',
+    )
+  );
+  return $theme;
+}
+
+/**
+ * Theme function to return the raw value of a field.
+ */
+function theme_summary_reports_raw($element) {
+  return $element['#item']['safe'];
+}
+
+function summary_report_build($node) {
+  iform_load_helpers(array('report_helper'));
+  $reportOptions = summary_report_get_report_options($node);
+  $func = 'summary_report_build_'.$node->field_summary_report_display[0]['value'];
+  $r = $node->body;
+  $r .= $func($node, $reportOptions);
+  handle_resources();
+  $breadcrumb = array();
+  $breadcrumb[] = l('Home', '<front>');
+  $breadcrumb[] = l('Summarise', 'summarise');
+  $breadcrumb[] = drupal_get_title(); // Link to current URL
+
+  // Set Breadcrumbs
+  drupal_set_breadcrumb($breadcrumb);
+  return $r;
+}
+
+function summary_report_get_report_options($node) {
+  $readAuth = report_helper::get_read_auth(variable_get('indicia_website_id',''), variable_get('indicia_password',''));
+  $r = array(
+    'mode' => 'report',
+    'readAuth' => $readAuth,
+    'extraParams' => array(
+      'date_from'=>'', 
+      'date_to'=>'', 
+      'survey_id'=>'',
+      'location_type_id'=>'',
+      'locattrs'=>'',
+      'quality'=>$node->field_summary_report_quality[0]['value']
+    )
+  );
+  switch ($node->field_summary_report_grouping[0]['value']) {
+    case 'region':
+      $folder = 'locations';
+      break;
+    case 'species': // legacy
+      $folder = 'taxon_groups';
+      break;
+    default:
+      $folder = $node->field_summary_report_grouping[0]['value'] . 's';
+  }
+  switch ($node->field_summary_report_count[0]['value']) {
+    case 'records':
+      $dataType = 'occurrence';
+      break;
+    case 'species':
+      $dataType = 'species';
+      break;
+  }
+  switch ($node->field_summary_report_inclusion[0]['value']) {
+    case 'Logged in user':
+      global $user;
+      profile_load_profile($user);
+      if (isset($user->profile_indicia_user_id)) {
+        $r['userId']=$user->profile_indicia_user_id;
+        $r['sharing']='me';  
+      } else {
+        drupal_set_message(t('As your user account has not been linked to the central records database yet, this summary is showing all records recorded on this website rather than just yours.'));
+        $r['sharing']='website';
+      }
+      break;
+    case 'Current website':
+      $r['sharing']='website';
+      break;
+    default:
+      $r['sharing']='reporting';
+      break;
+  }
+  $extra = (isset($node->field_summary_report_spatial[0]['value']) && $node->field_summary_report_spatial[0]['value']==='linked')
+      ? '_linked' : '';
+      
+  $r['dataSource'] = "library/$folder/$dataType"."_counts_mappable_summary".$extra;
+  return $r;
+}
+
+function summary_report_build_map($node, $reportOptions) {
+  /**
+   * @todo: Ensure report_helper changes to pass wantParameters and wantColumns are copied to SVN
+   */
+  iform_load_helpers(array('map_helper'));
+  $r = map_helper::map_panel(array(
+    'width' => '100%',
+    'height' => 600,
+    'initial_lat' => 51,
+    'initial_long' => -2,
+    'initial_zoom' => 8,
+    'presetLayers' => array('google_physical'),
+    'editLayer' => false
+  ), array('theme' => map_helper::$js_path . 'theme/default/style.css'));
+  // Are we drawing circles?
+  if ($node->field_summary_report_map_output[0]['value']!=='polygoncolour')
+    $reportOptions['displaySymbol']='circle';
+  if ($node->field_summary_report_map_output[0]['value']==='circlesize')
+    $reportOptions['valueOutput']=array(
+      'pointRadius'=>array(
+        'from'=>'5',
+        'to' => '15',
+        'valueField' => 'value',
+        'minValue'=> '{minvalue}',
+        'maxValue'=> '{maxvalue}'
+      )
+    );
+  else {
+    $reportOptions['valueOutput']=array(
+      'fillColor'=>array(
+        'from'=>'#000077',
+        'to' => '#ff0000',
+        'valueField' => 'value',
+        'minValue'=> '{minvalue}',
+        'maxValue'=> '{maxvalue}'
+      ),
+      'strokeColor'=>array(
+        'from'=>'#000055',
+        'to' => '#550000',
+        'valueField' => 'value',
+        'minValue'=> '{minvalue}',
+        'maxValue'=> '{maxvalue}'
+      )
+    );
+  }
+  $reportOptions['clickable']=false;
+  $r .= report_helper::report_map($reportOptions);
+  return $r;
+}
+
+function summary_report_build_table($node, $reportOptions) {
+  return report_helper::report_grid($reportOptions);
+}
+
+function summary_report_build_bar($node, $reportOptions) {
+  return summary_report_graph($node, $reportOptions, 'bar');
+}
+
+function summary_report_build_pie($node, $reportOptions) {
+  return summary_report_graph($node, array_merge(
+    array(
+	  // limit size of the legend
+	  'legendOptions'=>array('show'=>true, 'rendererOptions'=>array('numberColumns'=>2, 'numberRows'=>21)),
+	  'rendererOptions'=>array('showDataLabels'=>true,'dataLabelFormatString'=>'%d','dataLabels'=>'value','dataLabelThreshold'=>1,'dataLabelPositionFactor'=>1.05)
+	),
+    $reportOptions
+  ), 'pie');
+}
+
+function summary_report_graph($node, $reportOptions, $graphType) {
+  $reportOptions = array_merge($reportOptions, array(
+    'width'=>'100%',
+    'height'=>500,
+    'chartType' => $graphType,
+    'yValues'=>'value',
+    'xLabels'=>'name'
+  ));
+  return report_helper::report_chart($reportOptions);
+}

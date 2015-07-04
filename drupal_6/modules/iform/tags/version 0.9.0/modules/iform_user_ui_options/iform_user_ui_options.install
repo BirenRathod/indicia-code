@@ -1,0 +1,49 @@
+<?php
+// $Id$
+ 
+require_once('iform_user_ui_options.setup.inc');
+
+/**
+ * Implementation of hook_install().
+ */
+function iform_user_ui_options_install() {
+  $fields = _iform_ui_options_profile_fields();
+  foreach($fields as $name => $fieldDef) {
+     iform_user_ui_options_add_profile_field($name, $fieldDef);
+  }
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function iform_user_ui_options_uninstall() {
+  $fields = _iform_ui_options_profile_fields();
+  foreach($fields as $name => $fieldDef) {
+    $field = db_fetch_object(db_query("select fid from {profile_fields} where name='%s'", $name));
+    db_query("delete from {profile_values} where fid=%d", $field->fid);
+    db_query("delete from {profile_fields} where fid=%d", $field->fid);
+  }
+}
+
+/**
+ * Add a field to the list of available user profile fields.
+ */
+function iform_user_ui_options_add_profile_field($name, $fieldDef) {
+  db_query("INSERT INTO {profile_fields} (title, name, explanation, category, type, weight, required, register, visibility, autocomplete, options, page) VALUES ('%s', '%s', '%s', '%s', '%s', %d, %d, %d, %d, %d, '%s', '%s')",
+      $fieldDef['title'],
+      $name,
+      $fieldDef['explanation'],
+      $fieldDef['category'],
+      $fieldDef['type'],
+      $fieldDef['weight'],
+      $fieldDef['required'],
+      $fieldDef['register'],
+      $fieldDef['visibility'],
+      $fieldDef['autocomplete'],
+      $fieldDef['options'],
+      $fieldDef['page']
+  );
+  if (isset($fieldDef['checkboxes']) && $fieldDef['checkboxes'])
+    // Taxon groups use multi-select checkboxes
+    db_query("INSERT INTO {profile_checkboxes} (fid, type, delimiter) values (%d, 'checkboxes', ',')", db_last_insert_id('profile_fields', 'fid'));
+}

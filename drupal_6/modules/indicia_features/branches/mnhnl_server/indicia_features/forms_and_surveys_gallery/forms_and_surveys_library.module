@@ -1,0 +1,468 @@
+<?php
+
+function forms_and_surveys_library_menu() {
+  $items['forms_and_surveys_library'] = array(
+    'title' => t('My Forms'),
+    'description' => t('A library of available input forms to use and surveys to participate in.'),
+    'file'=>'forms_and_surveys_library.pages.inc',
+    'page callback' => 'library_view',
+    'access arguments' => array('online recording'),
+    'type' => MENU_NORMAL_ITEM
+  );
+  $items['forms_and_surveys_library/set_favourite'] = array(
+    'page callback'=>'forms_and_surveys_library_set_favourite',
+    'access arguments' => array('access iform'),
+    'type' => MENU_CALLBACK
+  );
+  $regForms = db_query('select n.nid, n.title, f.registration_path from {node} n '.
+      'join {forms_and_surveys_library} f on f.nid=n.nid and f.registration_path is not null');
+  while ($form=db_fetch_object($regForms)) {
+    $items[$form->registration_path] = array(
+      'title' => t($form->title),
+      'description' => t('Register for @title', array('@title' => $form->title)),
+      'page callback' => 'library_registration',
+      'page arguments' => array($form->nid),
+      'access arguments' => array('access content'),
+      'type' => MENU_NORMAL_ITEM
+    );
+  }
+  return $items;
+}
+
+/** 
+ * Menu handler for the registration page.
+ */
+function library_registration($nid) {
+  global $user;
+  // if logged in redirect to the form, else to the drupal registration page
+  if ($user->uid)
+    drupal_goto('node/'.$nid);
+  else 
+    drupal_goto('user/register', array('n'=>$nid));
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function forms_and_surveys_library_form_alter(&$form, $form_state, $form_id) {
+  if (isset($form['type']) && $form['type']['#value']==='iform' && isset($form['#node']) && $form['type']['#value'] .'_node_form' == $form_id) {
+    iform_load_helpers(array('data_entry_helper'));
+    $readAuth = data_entry_helper::get_read_auth(variable_get('indicia_website_id', 0), variable_get('indicia_password', ''));
+    $libEntry = db_fetch_array(db_query('select * from {forms_and_surveys_library} where nid=%d', $form['#node']->nid));
+    if ($libEntry) {
+      $include=true;
+      $locations = empty($libEntry['location_ids']) ? array() : unserialize($libEntry['location_ids']);
+      $taxon_groups = empty($libEntry['taxon_group_ids']) ? array() : unserialize($libEntry['taxon_group_ids']);
+    } else {
+      $include=false; 
+      $locations = array();
+      $taxon_groups=array();
+    }
+    // load the location names as at the moment we only have the keys
+    if (!empty($locations)) {
+      $qry = json_encode(array('in'=>array('id', $locations)));
+      $result = data_entry_helper::get_population_data(array(
+        'table' => 'location',
+        'extraParams'=>$readAuth + array('query'=>$qry)
+      ));
+      // convert result array to correct format for sub_list control
+      $locations = array();
+      foreach($result as $row)
+        $locations[$row['id']]=$row['name'];
+    }
+    // load the taxon group titles names as at the moment we only have the keys
+    if (!empty($taxon_groups)) {
+      $qry = json_encode(array('in'=>array('id', $taxon_groups)));
+      $result = data_entry_helper::get_population_data(array(
+        'table' => 'taxon_group',
+        'extraParams'=>$readAuth + array('query'=>$qry)
+      ));
+      // convert result array to correct format for sub_list control
+      $taxon_groups = array();
+      foreach($result as $row)
+        $taxon_groups[$row['id']]=$row['title'];
+    }
+    $title = $libEntry ? $libEntry['library_title'] : $form['#node']->title;
+    $description = $libEntry ? $libEntry['library_description'] : ''  ;
+    $registration_path = $libEntry ? $libEntry['registration_path'] : ''  ;
+    $registration_intro = $libEntry ? $libEntry['registration_intro'] : ''  ;
+    $form['library_settings'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Forms and surveys library settings'),
+      '#collapsible' => true,
+      '#collapsed' => !$include,
+      '#access' => user_access('create iform'),
+      '#weight' => 30,
+    );
+    $form['library_settings']['include_in_library'] = array(
+      '#title' => t('Include in library'),
+      '#type' => 'checkbox',
+      '#default_value' => $include ? 1 : 0,
+      '#description' => t('Tick this box to add the form to the forms and surveys library page.'),
+    );
+    $form['library_settings']['included'] = array(
+      '#type' => 'fieldset'
+    );
+    $form['library_settings']['included']['library_title'] = array(
+      '#title' => t('Library title'),
+      '#type' => 'textfield',
+      '#default_value' => $title,
+      '#description' => t('Title of the form as it appears in the library browser.'),
+    );
+    $form['library_settings']['included']['library_description'] = array(
+      '#title' => t('Library description'),
+      '#type' => 'textarea',
+      '#default_value' => $description,
+      '#description' => t('Description of the form as it appears in the library browser.'),
+    );
+    $form['library_settings']['included']['locations'] = array(
+      '#value' => data_entry_helper::sub_list(array(
+        'label' => t('Locations'), 
+        'fieldname'=>'locations',
+        'table'=>'location',
+        'valueField'=>'id',
+        'captionField'=>'name',
+        'extraParams' => $readAuth,
+        'default'=>$locations,
+        'class'=>'control-width-5'
+      ))
+    );
+    $form['library_settings']['included']['taxon_groups'] = array(
+      '#value' => data_entry_helper::sub_list(array(
+        'label' => t('Species groups'), 
+        'fieldname'=>'taxon_groups',
+        'table'=>'taxon_group',
+        'valueField'=>'id',
+        'captionField'=>'title',
+        'extraParams' => $readAuth,
+        'default'=>$taxon_groups,
+        'class'=>'control-width-5'
+      ))
+    );
+    $form['library_settings']['included']['registration_path'] = array(
+      '#title' => t('Registration path'),
+      '#type' => 'textfield',
+      '#default_value' => $registration_path,
+      '#description' => t('Path to the registration page for this survey. Leave blank if no registration page required.'),
+    );
+    $form['library_settings']['included']['registration_intro'] = array(
+      '#title' => t('Registration intro'),
+      '#type' => 'textarea',
+      '#default_value' => $registration_intro,
+      '#description' => t('Introduction to the form/survey, displayed above the registration page.'),
+    );
+    data_entry_helper::$javascript .= "
+function set_include() {
+  var ctrls=$('#edit-library-title-wrapper').parent('fieldset');
+  if ($('#edit-include-in-library').is(':checked')) {
+    ctrls.show();
+  } else {
+    ctrls.hide();
+  }
+}
+$('#edit-include-in-library').bind('click', set_include);
+set_include();\n";
+    handle_resources();
+  } elseif ($form_id === 'user_register') {
+    if (isset($_GET['n'])) {    
+      $n = db_fetch_object(db_query('select library_title, registration_intro from {forms_and_surveys_library} '.
+          'where registration_path is not null and nid=%d', $_GET['n']));
+      if ($n) {
+        $form['registration_title']=array(
+          '#value'=>'<h3>'.t('Register for @form', array('@form'=>t($n->library_title))).'</h3>',
+          '#weight'=>-50
+        );
+        $content='<p>'.$n->registration_intro.'</p>';
+        $content.='<p>'.t('If you already have an @site account, !link.', array('@site'=>variable_get('site_name', t('this site')), '!link'=>l(t('login here'), 'user/login'))).'</p>';
+        $node = node_load($_GET['n']);
+        if (node_access('view', $node)) {
+          $content .= '<p>'.t('If you prefer, you can <a href="!url">add records without registering</a> but you will not be able to access all the features of @site.', 
+                array('!url'=>url('node/'.$_GET['n']), '@site'=>variable_get('site_name', t('this site')))).'</p>';
+        }
+        $form['profile_home_page'] = array(
+          '#type'=>'hidden',
+          '#default_value'=>'node/'.$_GET['n']
+        );
+        $form['registration_intro']=array(
+          '#value'=>$content,
+          '#weight'=>-49
+        );
+      }
+    }
+  }
+  if ($form_id === 'user_profile_form' && isset($form['Preferences'])) {
+    // load the available forms as options to register against
+    $regForms = db_query("select nid, library_title from {forms_and_surveys_library}");
+    $options = array(''=>'Default home page');
+    while ($regForm=db_fetch_object($regForms))
+      $options['node/'.$regForm->nid]=$regForm->library_title;    
+    $form['Preferences']['profile_home_page']['#options']=$options;
+    $form['#submit'][] = 'forms_and_surveys_library_save_profile';
+  }
+}
+
+/**
+ * Submit handler for user registration and profile forms, which ensures any selected home page form
+ * is added to the list of user favourites.
+ */
+function forms_and_surveys_library_save_profile($form, &$form_state) {
+  if (preg_match('/^node\/(?P<nid>\d+)/', $form_state['values']['profile_home_page'], $matches)) {
+    // saving a home page setting, so make sure this is one of the user's faved forms
+    global $user;
+    profile_load_profile($user);
+    $forms = empty($user->profile_favourite_library_forms) ? array() : unserialize($user->profile_favourite_library_forms);
+    if (!in_array($matches['nid'], $forms)) 
+      $forms[] = $matches['nid'];
+    forms_and_surveys_library_save_forms($forms, $user->uid);
+  }
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ *
+ * Allows library info to be specified at node edit time rather
+ * than through the administrative interface.
+ */
+function forms_and_surveys_library_nodeapi(&$node, $op, $arg) {
+  // Permissions are required for everything except node loading.
+  if (user_access('create iform') || ($op == 'load')) {
+    switch ($op) {
+      //case 'load': -- not implemented as not needed, since it causes extra db hits when nodes are loaded
+      case 'insert':
+      case 'update':
+        if ($node->include_in_library) {
+          // Have to use $_POST as Drupal does not seem to pickup the output of the sub_list control.
+          // Work out if there is an existing record. db_write_record can then do an insert or update.
+          $exist = db_fetch_object(db_query('select nid, registration_path from {forms_and_surveys_library} where nid=%d', $node->nid));
+          $key = $exist ? 'nid' : array();
+          
+          $record = array(
+            'nid'=>$node->nid,
+            'location_ids'=>array_key_exists('locations', $_POST) ? serialize($_POST['locations']) : null,
+            'taxon_group_ids'=>array_key_exists('taxon_groups', $_POST) ? serialize($_POST['taxon_groups']) : null,
+            'library_title'=>$node->library_title,
+            'library_description'=>$node->library_description,
+            'registration_path'=>$node->registration_path,
+            'registration_intro'=>$node->registration_intro
+          );
+          // if registration path changes, rebuild the menu
+          if (!$exist && !empty($node->registration_path) || $exist->registration_path != $node->registration_path) 
+            menu_rebuild();
+          drupal_write_record('forms_and_surveys_library', $record, $key);
+        } else {
+          _forms_and_surveys_library_delete($node->nid);
+        }
+        
+        break;
+
+      case 'delete':
+        // delete from forms_and_surveys_library where nid=$node->nid;
+        _forms_and_surveys_library_delete($node->nid);
+        break;
+    }
+  }
+}
+
+/**
+ * Delete a form from the library.
+ * @param type $nid Node ID
+ */
+function _forms_and_surveys_library_delete($nid) {
+  db_query('delete from {forms_and_surveys_library} where nid=%d', $nid);
+}
+
+/**
+ * Ajax method for setting whether a particular form is in the list of forms associated with the current user.
+ */
+function forms_and_surveys_library_set_favourite() {
+  global $user;
+  profile_load_profile($user);
+  $forms = empty($user->profile_favourite_library_forms) ? array() : unserialize($user->profile_favourite_library_forms);
+  if ($_GET['favourite']==='1') {
+    if (!in_array($_GET['nid'], $forms)) 
+      $forms[] = $_GET['nid'];
+  } else
+    // remove the form from the array
+    $forms = array_diff($forms, array($_GET['nid']));
+  forms_and_surveys_library_save_forms($forms, $user->uid);
+  // force a menu rebuild
+  cache_clear_all('fsl-menu-'.$user->uid, 'cache');
+  // must do this now, because if we leave it till later the $user object has the out of date forms list when it reloads (presumably a cache issue)
+  forms_and_surveys_submenu($forms);
+  echo 'Ok';
+}
+
+/**
+ * Saves an array of forms to the user's favourite forms array.
+ */
+function forms_and_surveys_library_save_forms($forms, $uid) {
+  // have to use our own db save code, because profile_save_profile does not save hidden fields you don't have access to
+  $field = db_fetch_object(db_query("select fid from {profile_fields} where name='profile_favourite_library_forms'"));
+  $formData=serialize($forms);  
+  db_query("insert into {profile_values} (fid, uid, value) values (%d, %d, '%s') on duplicate key update value='%s'", $field->fid, $uid, $formData, $formData);
+}
+
+/**
+ * Saves a home page selection to the user's profile
+ */
+function forms_and_surveys_library_save_home_page($home_page, $uid) {
+  // have to use our own db save code, because profile_save_profile does not save hidden fields you don't have access to
+  $field = db_fetch_object(db_query("select fid from {profile_fields} where name='profile_home_page'"));  
+  db_query("insert into {profile_values} (fid, uid, value) values (%d, %d, '%s') on duplicate key update value='%s'", $field->fid, $uid, $home_page, $home_page);
+}
+
+
+/**
+ * Implement hook_user
+ * For registration of users via a survey registration page, make that form one of the user's faves
+ */ 
+function forms_and_surveys_library_user($op, &$edit, &$account, $category = NULL) {
+  switch ($op) {
+    case 'insert':      
+      if (!empty($edit['profile_home_page'])) {   
+        $account->profile_home_page=$edit['profile_home_page'];
+        save_home_page_and_faves($account);
+      }
+      break;
+    case 'login':      
+      // default
+      $_REQUEST['destination'] = '<front>';
+      // Don't redirect if we are about to reset our password.
+      if (!isset($_GET['q']) || !preg_match('/^user\/reset\//', $_GET['q'])) {
+        // If registration for a specific form then redirect
+        profile_load_profile($account);
+        if (!empty($account->profile_home_page)) {
+          $_REQUEST['destination'] = $account->profile_home_page;
+        }
+      }
+      break;
+    case 'submit':
+      // User has submitted their profile, so might have just changed their password for the first time. We have to trap and save the 
+      // home page form and favourite forms at this stage, since this is when we know the user ID for the first time.
+      if (isset($account->profile_home_page))
+        save_home_page_and_faves($account, true);
+  }  
+}
+
+function save_home_page_and_faves($user, $notify=false) {
+  if (preg_match('/^node\/(?P<nid>\d+)/', $user->profile_home_page, $matches)) {
+    forms_and_surveys_library_save_forms(array($matches['nid']), $user->uid);
+    if ($notify) {
+      $n = db_fetch_object(db_query('select library_title from {forms_and_surveys_library} '.
+          'where registration_path is not null and nid=%d', $matches['nid']));
+      drupal_set_message(t("Perhaps you'd like to get on with using the form !title? You can find this form later under the Record -&gt; My Forms menu item.", 
+          array('!title'=>l($n->library_title, $user->profile_home_page))));
+    }
+  }
+  forms_and_surveys_library_save_home_page($user->profile_home_page, $user->uid);
+}
+
+/**
+ * Modify the forms registry so that the nice menus output is controlled by this module. This let us splice in user's forms. 
+ */
+function forms_and_surveys_library_theme_registry_alter(&$theme_registry) {
+  if (module_exists('nice_menus') && !empty($theme_registry['nice_menus_build'])) {  
+    $theme_registry['nice_menus_build']['function'] = 'forms_and_surveys_library_menu_build';
+  }
+}
+
+/** 
+ * Build the nice menu output, inserting our fave forms in the My Forms menu item.
+ * @todo: Caching
+ * @todo: Clear the nice menu cache when the user saves a fave.
+ * @todo: Make the menu item configurable.
+ */
+function forms_and_surveys_library_menu_build($menu, $depth = -1, $trail = NULL) {
+  $output = '';
+  // Prepare to count the links so we can mark first, last, odd and even.
+  $index = 0;
+  $count = 0;
+  foreach ($menu as $menu_count) {
+    if ($menu_count['link']['hidden'] == 0) {
+      $count++;
+    }
+  }
+  // Get to building the menu.
+  foreach ($menu as $menu_item) {
+    $mlid = $menu_item['link']['mlid'];
+    // Check to see if it is a visible menu item.
+    if (!isset($menu_item['link']['hidden']) || $menu_item['link']['hidden'] == 0) {
+      // Check our count and build first, last, odd/even classes.
+      $index++;
+      $first_class = $index == 1 ? ' first ' : '';
+      $oddeven_class = $index % 2 == 0 ? ' even ' : ' odd ';
+      $last_class = $index == $count ? ' last ' : '';
+      // Build class name based on menu path
+      // e.g. to give each menu item individual style.
+      // Strip funny symbols.
+      $clean_path = str_replace(array('http://', 'www', '<', '>', '&', '=', '?', ':', '.'), '', $menu_item['link']['href']);
+      // Convert slashes to dashes.
+      $clean_path = str_replace('/', '-', $clean_path);
+      $class = 'menu-path-'. $clean_path;
+      if ($trail && in_array($mlid, $trail)) {
+        $class .= ' active-trail';
+      }
+      // If it has children build a nice little tree under it.
+      if ((!empty($menu_item['link']['has_children'])) && (!empty($menu_item['below'])) && $depth != 0) {
+        // Keep passing children into the function 'til we get them all.
+        $children = theme('nice_menus_build', $menu_item['below'], $depth, $trail);
+        // Set the class to parent only of children are displayed.
+        $parent_class = ($children && ($menu_item['link']['depth'] <= $depth || $depth == -1)) ? 'menuparent ' : '';
+        $output .= '<li class="menu-' . $mlid . ' ' . $parent_class . $class . $first_class . $oddeven_class . $last_class .'">'. theme('menu_item_link', $menu_item['link']);
+        // Check our depth parameters.
+        if ($menu_item['link']['depth'] <= $depth || $depth == -1) {
+          // Build the child UL only if children are displayed for the user.
+          if ($children) {
+            $output .= '<ul>';
+            $output .= $children;
+            $output .= "</ul>\n";
+          }
+          if ($menu_item['link']['title']==='My Forms') {
+            $output .= '<ul>';
+            $output .= '<li>test</li>';
+            $output .= "</ul>\n";
+          }
+        }        
+        $output .= "</li>\n";
+      } elseif (strcasecmp($menu_item['link']['title'], 'My Forms')===0) {
+        global $user;        
+        // Use the cache to avoid loading all the form nodes each rebuild. 
+        $formsMenu = cache_get('fsl-menu-'.$user->uid);
+        if ($formsMenu)
+          $output .= $formsMenu->data;
+        else {
+          profile_load_profile($user);
+          $parent_class = empty($user->profile_favourite_library_forms) ? '' : 'menuparent ';
+          $output .= '<li class="menu-' . $mlid . ' ' . $parent_class . $class . $first_class . $oddeven_class . $last_class .'">'. theme('menu_item_link', $menu_item['link']);
+          // add a sub-menu for the user's favourite forms
+          if (!empty($user->profile_favourite_library_forms)) {
+            $output .= forms_and_surveys_submenu(unserialize($user->profile_favourite_library_forms));
+          }
+          $output .= "</li>\n";
+        }
+      } else {
+        $output .= '<li class="menu-' . $mlid . ' ' . $class . $first_class . $oddeven_class . $last_class .'">'. theme('menu_item_link', $menu_item['link']) .'</li>'."\n";
+      }
+    }
+  }
+  return $output;
+}
+
+/**
+ * Build the submenu from the list of forms.
+ */
+function forms_and_surveys_submenu($forms) {
+  if (count($forms)>0) {
+    $fslMenu .= '<ul class="forms-library">';
+    $forms = implode(',',$forms);
+    $qry=db_query('select nid, library_title from {forms_and_surveys_library} where nid in (%s)', $forms);
+    // add li elements for each faved form
+    while ($item=db_fetch_object($qry)) {
+      $fslMenu .= '<li>'.l(t($item->library_title), 'node/'.$item->nid).'</li>';
+    }
+    $fslMenu .= '</ul>';
+    cache_set('fsl-menu-'.$user->uid, $fslMenu);
+    return $fslMenu;
+  } else
+    return '';
+}

@@ -1,0 +1,196 @@
+<?php
+// $Id$
+require_once(drupal_get_path('module','iform').'/iform.module');
+require_once(iform_client_helpers_path() . 'prebuilt_forms/distribution_map_1.php');
+
+/**
+* Implement hook_taxon_formatter_types
+*/
+function indicia_map_taxon_formatter_types() {
+  $formatter = array(
+    'indicia_map' => array(
+      'title' => t('Indicia Map'),
+      // field type is tvk, tlick or brc (+GBIF?)
+      'field_type' => 'tvk',
+      // function that generates the form using Forms API, with arguments for the current 
+      // settings values, type name (e.g. indicia_map) and optional $args
+      'form_callback' => 'indicia_map_taxon_formatter_settings_form',
+      'form_args' => array() // can be used to pass arguments to the form
+    )
+  );
+  return $formatter;
+}
+
+/**
+ * This defines the drupal form used for the settings of this formatter type.
+ * 
+ * This attempts to reuse the iform_distribution_map_1 but this is might have been a 
+ * bad idea. Potentially more confusing than labour saving. I've ended up 
+ * recreating some of what is done in report_helper instead of recreating what is 
+ * done in distribution_map_1
+ */
+function indicia_map_taxon_formatter_settings_form($settings, $type, $args) {
+  if ($type=='indicia_map') {
+    // apply some defaults
+    $settings = array_merge(array(
+      'map_width' => 200,
+      'map_height' => 300,
+      'map_zoom' => 4,
+    ), $settings);
+    
+    iform_load_helpers(array('data_entry_helper'));
+    $connection = iform_get_connection_details($node);
+
+    // Get the parameters for a distribution_map_1
+    $map_params = iform_distribution_map_1::get_parameters();
+    $form = array();
+    // We don't want all of them and these are the ones to ignore
+    $ignore_params = array('refresh_timer', 'load_on_refresh', 
+        'external_key', 'show_all_species', 'taxon_identifier');
+    // The parameters are returned in a mixed format that that has to be mapped on to the forms API format. 
+    $type_mapping = array(
+        'textfield' => 'textfield',
+        'text_input' => 'textfield',
+        'int' => 'textfield',
+        'textarea' => 'textarea',
+        'boolean' => 'checkbox',
+        'checkbox' => 'checkbox',
+        'select' => 'select',
+        'list' => 'checkboxes',        
+    );
+    $fieldsets = array();
+    // So loop through the parameters
+    foreach ($map_params as $a){
+      // Extract the field name which may be in one of two formats
+      if (array_key_exists('name', $a)) $name = $a['name'];
+      elseif (array_key_exists('fieldname', $a)) $name = $a['fieldname'];
+      
+      // Check to see whether we ignore the parameter
+      if (!in_array($name, $ignore_params)) {
+        // Check to see if the parameter is one of a group
+        if (array_key_exists('group', $a)) {
+          $fieldset = preg_replace('/\s+/', '_', strtolower($a['group']));
+          // Check to see if this group has already been created
+          if (!in_array($fieldset, $fieldsets)) {
+            // Add it if not already created
+            $form[$fieldset] = array (
+              '#type' => 'fieldset',
+              '#title' => t($a['group']),
+              // collapsing doesn't appear to work in this context
+              '#collapsible' => false,
+              '#collapsed' => false,
+            );
+            $fieldsets[] = $fieldset;
+          }
+        }
+        else {
+          // item not in fieldset
+          $fieldset = false;
+        }
+        
+        // Extract the field title which may be in one of two formats
+        if (array_key_exists('caption', $a)) $title = $a['caption'];
+        elseif (array_key_exists('label', $a)) $title = $a['label'];
+        // Extract the field description which may be in one of two formats
+        if (array_key_exists('description', $a)) $description = $a['description'];
+        elseif (array_key_exists('helpText', $a)) $description = $a['helpText'];
+        // Turn the parameter in to an item on the form
+        $formitem = array(
+          '#type' => $type_mapping[$a['type']],
+          '#title' => $title,
+          '#description' => $description,
+          '#required' => $a['required'],
+          '#wysiwyg' => FALSE
+        );
+        
+        unset($options);
+        // Check to see if the parameter has options
+        if (array_key_exists('options', $a)) $options = $a['options'];
+        // Check to see if we need to look up options
+        if (array_key_exists('table', $a)) {
+          $readAuth = data_entry_helper::get_read_auth($connection['website_id'], $connection['password']);
+          $response = data_entry_helper::get_population_data(array(
+              'table' => $a['table'],
+              'extraParams' => $readAuth,
+          ));
+          // Check that look up was successful
+          if (!array_key_exists('error', $response)) {
+            $options = array();
+            // Loop through returned options
+            foreach ($response as $record) {
+              // Check there is a value field for the option
+              if (array_key_exists($a['valueField'], $record)) {
+                $value = $record[$a['valueField']];
+                $caption = $record[$a['captionField']];
+                $options[$value] = $caption;
+              }
+            }            
+          }
+        }
+        // Add options to form item if there are some.
+        if (isset($options)) $formitem['#options'] = $options;
+        
+        unset($default);
+        // Check for a default value for the parameter
+        if (array_key_exists('default', $a)) $default = $a['default'];
+        // Check for a setting to override the default value
+        if (array_key_exists($name, $settings)) $default = $settings[$name];
+        // Apply a value if there is one
+        if (isset($default)) $formitem['#default_value'] = $default;
+        
+        if ($fieldset) 
+          $form[$fieldset][$name] = $formitem;
+        else
+          $form[$name] = $formitem;
+      }
+    }    
+  }
+  return $form;
+}
+
+/**
+ * Implements the output theme function.
+ * @todo Theming
+ * @todo NBN map web service integration
+ * @todo caching option
+ */
+function theme_indicia_map_taxon_formatter_output($element, $preset) {
+  // return nothing if no TVK.
+  $tvk = trim($element['#item']['safe_value']);
+  if (empty($tvk))
+    return '';
+  
+  $args = $preset['settings'];
+  $args['taxon_identifier'] = $tvk;
+  $args['external_key'] = true;
+  $connection = iform_get_connection_details($node);
+  $args['website_id'] = $connection['website_id'];
+  $args['password'] = $connection['password'];
+  _iform_apply_variables_to_args($args);
+  $map = iform_distribution_map_1::get_form($args);
+  handle_resources();
+  return theme('indicia_map_output', $map, $preset);
+}
+
+/**
+ * Theme function that creates the final map output with NBN attribution.
+ */
+function theme_indicia_map_output($map, $preset) {
+  $result = '<div style="width: '.$preset['settings']['map_width'].'px; margin: 0 auto;">'. $map .'</div>';
+  return $result;  
+}
+
+/**
+ * Implementation of hook_theme.
+ */
+function indicia_map_theme() {
+  $theme = array();
+  $theme["indicia_map_taxon_formatter_output"] = array(
+      'arguments' => array('element' => NULL),
+  );
+  $theme["indicia_map_output"] = array(
+      'arguments' => array('element' => NULL),
+  );
+  return $theme;
+}
+

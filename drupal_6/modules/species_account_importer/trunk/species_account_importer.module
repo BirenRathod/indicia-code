@@ -1,0 +1,80 @@
+<?php
+// $Id$
+
+/**
+ * Implementation of hook_perm().
+ */
+function species_account_importer_perm() {
+  return array('administer species account importer', 'import species accounts');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function species_account_importer_menu() {
+  $items = array();
+  $items['admin/settings/species_account_importer'] = array(
+    'title' => t('Species account importer'),
+    'file' => 'species_account_importer.admin.inc',
+    'description' => t('Change settings for the species account importer.'),
+    'page callback' => 'drupal_get_form', 
+    'page arguments' => array('species_account_importer_settings_form'),
+    'access arguments' => array('import species accounts'),
+  );
+  $items['admin/build/import_species_accounts'] = array(
+    'title' => t('Species accounts'),
+    'file' => 'species_account_importer.pages.inc',
+    'description' => t('Import species accounts from text extracted from PDF atlas files.'),
+    'page callback' => 'drupal_get_form', 
+    'page arguments' => array('import_species_accounts_form'),
+    'access arguments' => array('import species accounts'),
+    'type' => MENU_NORMAL_ITEM
+  );
+  $items['admin/build/import_species_accounts/accounts'] = array(
+    'title' => t('Import species account texts'),
+    'file' => 'species_account_importer.pages.inc',
+    'description' => t('Import species accounts from text extracted from PDF atlas files.'),
+    'page callback' => 'drupal_get_form', 
+    'page arguments' => array('import_species_accounts_form'),
+    'access arguments' => array('import species accounts'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => 0
+  );
+  $items['admin/build/import_species_accounts/images'] = array(
+    'title' => t('Import species images'),
+    'file' => 'species_account_importer.pages.inc',
+    'description' => t('Import species images from uploaded files.'),
+    'page callback' => 'drupal_get_form', 
+    'page arguments' => array('import_species_images_form'),
+    'access arguments' => array('import species accounts'),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 1
+  );
+  return $items;
+}
+
+/**
+ * Retrieve the vocabulary ID for the one to use for generating the gallery hierarchy. If the variable
+ * does not exist, we look for a vocab with the default title of Taxonomic hierarchy to use.
+ */
+function sai_get_vid() {
+  $vid = variable_get('sai_vid', 0);
+  if (!$vid && ($vocab = db_fetch_object(db_query("select vid from {vocabulary} where name='Taxonomic hierarchy'")))) {
+    $vid = $vocab->vid;
+    variable_set('sai_vid', $vid);    
+  }
+  return (int)$vid;
+}
+
+/**
+ * Gets the list of Drupal vocabularies in a format suitable for attaching to a Drupal form control.
+ * @return array Associative array of vocabularies
+ */
+function sai_vocabulary_array() {
+  $vocabs = taxonomy_get_vocabularies();
+  $vocabArr = array();
+  foreach ($vocabs as $vocab) {
+    $vocabArr[$vocab->vid] = $vocab->name;
+  }
+  return $vocabArr;
+}

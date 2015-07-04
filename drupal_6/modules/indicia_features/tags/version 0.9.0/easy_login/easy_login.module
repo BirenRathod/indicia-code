@@ -1,0 +1,535 @@
+<?php
+
+/**
+ * Implementation of hook menu.
+ * Exposes a form that can resolve the case when there are several possible users that this account can be linked to
+ * on the warehouse.
+ */
+function easy_login_menu() {
+  $items['resolve_multiple_users'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments'   => array('resolve_multiple_users_form'),
+    'type' => MENU_CALLBACK,
+    'access callback' => 'user_access',
+    'access arguments' => array('post comments'), // anyone logged in
+  );
+  return $items;
+}
+
+function resolve_multiple_users_form() {
+  $userList = $_SESSION['multiple_users_to_resolve'];
+  drupal_set_message(t('There appear to be several existing users on the central records database which may or may not be yours. They are users of the '.
+        'following websites. Please tick the ones which you agree you have been a user of then press Save.'));
+  $websites = array();
+  foreach ($userList as $user) {
+    if ($user->website_id!==variable_get('indicia_website_id', 0))
+      $websites[$user->website_id] = $user->title;
+  }
+  $form['website_list'] = array(
+    '#type'=>'fieldset',
+    '#title'=>t('List of websites you might be a user of:')
+  );
+  $form['website_list']['websites'] = array(
+    '#type' => 'checkboxes',
+    '#options' => $websites
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save')
+  );
+  return $form;
+}
+
+function resolve_multiple_users_form_submit($form, &$form_state) {
+  $userList = $_SESSION['multiple_users_to_resolve'];
+  $listToMerge = array();
+  $tickedWebsites = array();
+  foreach($form_state['values']['websites'] as $website_id=>$ticked) {
+    if ($ticked!==0) {
+      $tickedWebsites[] = $website_id;
+    }
+  }
+  foreach ($userList as $user) {
+    if ($user->website_id===variable_get('indicia_website_id', 0) || in_array($user->website_id, $tickedWebsites))
+      $listToMerge[] = $user->user_id;
+  }
+  $user = user_load($_SESSION['uid_to_resolve']);
+  $response = easy_login_call_get_user_id($user, 'merge', $listToMerge);
+  easy_login_handle_get_user_id_response($user, $response);
+  drupal_goto('user/'.$user->uid.'/edit');
+}
+
+/**
+ * Implementation of hook_user.
+ * Traps login events and ensures the user is registered on the warehouse. Stores the user's ID in the local profile data.
+ */
+function easy_login_user($op, &$edit, &$account, $category = NULL) {
+  static $_updating_account=false;
+  if (!$_updating_account) {
+    switch ($op) {
+      case 'view':
+        iform_load_helpers(array('data_entry_helper'));
+        $readAuth=data_entry_helper::get_read_auth(variable_get('indicia_website_id',''), variable_get('indicia_password',''));
+        _easy_login_set_view_account_for_table('location', 'name', $account, 'profile_location', $readAuth, 
+            'Recording preferences', 'Your preferred locality for recording is !items.');
+        if (user_access('verification', $account)) 
+          _easy_login_set_view_account_for_table('location', 'name', $account, 'profile_location_expertise', $readAuth, 
+              'Verification settings', 'Your locality for verification is !items.');
+        else
+          unset($account->content['Preferences']['profile_location_expertise']);
+        if (user_access('collate regional records', $account))
+          _easy_login_set_view_account_for_table('location', 'name', $account, 'profile_location_collation', $readAuth, 
+              'Data collation settings', 'Your locality for data collation downloads is !items.');
+        else
+          unset($account->content['Preferences']['profile_location_collation']);
+        _easy_login_set_view_account_for_table('taxon_group', 'title', $account, 'profile_taxon_groups', $readAuth, 
+            'Recording preferences', 'Your preferred species groups for recording are !items.');
+        if (user_access('verification', $account)) {
+          _easy_login_set_view_account_for_table('taxon_group', 'title', $account, 'profile_taxon_groups_expertise', $readAuth, 
+              'Verification settings', 'Your species groups for verification are !items.');
+          _easy_login_set_view_account_for_table('survey', 'title', $account, 'profile_surveys_expertise', $readAuth, 
+              'Verification settings', 'Your surveys for verification are !items.');
+        } else {
+          unset($account->content['Preferences']['profile_taxon_groups_expertise']);
+          unset($account->content['Preferences']['profile_surveys_expertise']);
+        }
+        if (isset($account->content['Preferences']['profile_record_privacy'])) {
+          // convert a boolean to something more readable
+          $account->content['Preferences']['profile_record_privacy']['#title']=t('Record privacy');
+          $account->content['Preferences']['profile_record_privacy']['#value']=t(
+              'You have opted not to share your records with other websites.');
+        }
+        // remove the preferences section ONLY if it has no sub-items
+        $gotPreferences=false;
+        if (isset($account->content['Preferences']))
+          foreach($account->content['Preferences'] as $item=>$content) {
+            if (substr($item, 0, 1)!=='#') {
+              $gotPreferences=true;
+            }
+          }
+        if (!$gotPreferences)
+          unset($account->content['Preferences']);
+        break;
+      case 'login':
+        if (empty($account->profile_last_name)) {
+          drupal_set_message('Please set at least your last name on your '.l('user account', 'user/'.$account->uid.'/edit/Name').
+              '. This will allow your user registration to be linked properly to the central database of records.');
+          return;
+        }
+        // deliberately flow through - as we always check the account id after account update. So do NOT break
+      case 'submit':
+        $fieldsToSyncByCaption = array();
+        // Make a copy of the account being edited.          
+        $editedAccount = clone $account;
+        // $edit can be empty during initial registration
+        if (!empty($edit)) {
+          // there seems to be an issue in profile_checkboxes, which means that #access=FALSE sets of taxon groups
+          // will overwrite the value with empty when it shouldn't. This prevents the overwrite if you don't have access.
+          if (!user_access('administer users')) {
+            if (!empty($account->profile_taxon_groups_expertise)) 
+              $edit['profile_taxon_groups_expertise'] = serialize(explode(',', $account->profile_taxon_groups_expertise));
+            else
+              unset($edit['profile_taxon_groups_expertise']);
+            if (!empty($account->profile_surveys_expertise)) 
+              $edit['profile_surveys_expertise']=$account->profile_surveys_expertise;
+            else
+              unset($edit['profile_surveys_expertise']);
+          }
+          foreach ($edit as $field => $value) {
+            // Apply the edits to the copy of the account
+            // This is needed when calling easy_login_call_get_user_id
+            $editedAccount->$field = $value;
+            $fieldsToSync = array();
+            // fields that are available for synchronisation must be called profile_indicia_*. We
+            // also don't want to handle anything that has not actually changed.
+            if ($value != $account->$field && preg_match('/^profile_indicia_/', $field) && $field!=='profile_indicia_user_id') {
+              $fieldsToSync[$field] = $value;
+            }
+            if (count($fieldsToSync)) {
+              // Indicia requires fields to match on the caption, so we need to query the captions and
+              // convert the array.
+              $r = db_query("select name, title from {profile_fields} where name in ('%s')", implode("','", array_keys($fieldsToSync)));
+              while ($row = db_fetch_array($r))
+                $fieldsToSyncByCaption[$row['title']] = $fieldsToSync[$row['name']];
+            }
+          }
+          // If the user has not filled in preferences then prompt them. Allow for the fact that the site administrator might have
+          // hidden these fields if they feel they are not relevant to the site.
+          $requests = array();
+          $rows = db_query("select name from {profile_fields} where name in ('profile_location','profile_taxon_groups') and visibility in (2,3)");
+          while ($row = db_fetch_array($rows)) {
+            if ($row['name'] === 'profile_location' && empty($editedAccount->profile_location))
+              $requests[] = t('the area you would most often like to record in');
+            if ($row['name'] === 'profile_taxon_groups' && empty($editedAccount->profile_taxon_groups))
+              $requests[] = t('the list of species groups you are particularly interested in');
+          }
+          if (!empty($requests))
+            drupal_set_message(t('Why not tell us !requests to help us tailor the system to your needs? '.
+                'You can fill this information in on your !link.',
+                array(
+                  '!requests' => implode(' '.t('and').' ', $requests),
+                  '!link' => l('user preferences', 'user/'.$account->uid.'/edit/Preferences')
+                )
+            ));
+        }
+        $_updating_account=true;
+        $response = easy_login_call_get_user_id($editedAccount, null, null, $fieldsToSyncByCaption);
+        easy_login_handle_get_user_id_response($editedAccount, $response, $edit, $op);
+        unset($edit['profile_indicia_user_id']);
+        $_updating_account=false;
+    }
+  }
+}
+
+/**
+ * Converts the information on the account's View page to show a list of species groups or locations
+ * rather than the taxon_group_ids or location IDs.
+ */
+function _easy_login_set_view_account_for_table($table, $titleField, &$account, $profileField, $readAuth, $title, $description) {
+  if (!empty($account->$profileField) && !empty($account->content['Preferences'][$profileField])) {
+    $itemList = _easy_login_get_profile_field_as_list($table, $account, $profileField, $titleField, $readAuth);
+    $section = str_replace(' ', '', $title);
+    if (!isset($account->content[$section]))
+      $account->content[$section]=array(
+        '#type' => 'user_profile_category',
+        '#title' => t($title),
+        '#weight' => 1
+      );
+    $account->content[$section][$profileField] = array_merge(
+      $account->content['Preferences'][$profileField],
+      array(
+        '#value'=>t($description, array('!items'=>$itemList)),
+        '#title'=>''
+      )
+    );
+    // Hide the original display of the field provided by Drupal
+    unset($account->content['Preferences'][$profileField]);
+  }
+}
+
+/**
+ * Converts the serialized list of IDs in a profile field (list of locations or species groups) into
+ * a comma separated list of readable item titles.
+ */
+function _easy_login_get_profile_field_as_list($table, $account, $profileField, $titleField, $readAuth) {
+  if (!empty($account->$profileField)) {
+    // unserialise the variable value if we have to. If serialised, the string will contain {.
+    if (strpos($account->$profileField, '{')===false)
+      $value=explode(',', $account->$profileField);
+    else
+      $value=unserialize($account->$profileField);
+  }
+  if (!isset($value) || empty($value)) 
+    return '<strong>' . t('not specified') . '</strong>';
+  else {
+    // convert to a list of readable location or group titles
+    $items = data_entry_helper::get_population_data(array(
+      'table'=>$table,
+      'extraParams'=>$readAuth + array('orderby'=>$titleField, 'sortdir'=>'ASC', 'sharing'=>'verification',
+          'query'=>json_encode(array('in'=>array('id', $value)))
+      )
+    ));
+    $itemList=array();
+    foreach($items as $item) 
+      $itemList[]='<strong>'.$item[$titleField].'</strong>';
+    return implode(', ', $itemList);
+  }
+}
+
+/**
+ * Function to call the get_user_id service on the warehouse.
+ * @param object $account User object.
+ * @param string $force Set to merge (to force a merge operation) or split (to force no merge).
+ * @param array $users_to_merge If force is set to merge, but only some users must be merged,
+ * pass an array of the user IDs.
+ * @return string Response from call to get_user_id
+ */
+function easy_login_call_get_user_id($account, $force=null, $users_to_merge=null, $fieldsToSyncByCaption=array()) {
+  iform_load_helpers(array('data_entry_helper'));
+  $url = data_entry_helper::$base_url.'index.php/services/user_identifier/get_user_id';
+  $identifiers = array(array('type'=>'email','identifier'=>$account->mail));
+  // add twitter, fb and openID accounts here
+  // @todo OpenID and fb.
+  if (module_exists('twitter')) {
+    $twitterAccounts = twitter_get_user_accounts($account->uid);
+    foreach ($twitterAccounts as $twitterAccount) {
+      $identifiers[] = array('type'=>'twitter', 'identifier'=>$twitterAccount->screen_name);
+    }
+  }
+  $identifiers = urlencode(json_encode($identifiers));
+  $auth = data_entry_helper::get_read_write_auth(variable_get('indicia_website_id', ''), variable_get('indicia_password', ''));
+  $url .= '?nonce='.$auth['write_tokens']['nonce'].'&auth_token='.$auth['write_tokens']['auth_token'].'&cms_user_id='.$account->uid;
+  $postargs = 'surname='.urlencode($account->profile_last_name).'&identifiers='.$identifiers;
+  if ($account->profile_indicia_user_id)
+    $postargs .= '&warehouse_user_id=' . $account->profile_indicia_user_id;
+  if (count($fieldsToSyncByCaption))
+    $postargs .= '&attribute_values='.urlencode(json_encode($fieldsToSyncByCaption));
+  if (!empty($account->profile_first_name))
+    $postargs .= '&first_name='.urlencode($account->profile_first_name);
+  if ($force && ($force==='merge' || $force==='split')) {
+    $postargs .= '&force='.$force;
+    // We are definitely doing something on the server, so can inform the user
+    drupal_set_message(t('Your user information has been updated.'));
+  }
+  $postargs .= '&shares_to_prevent=';
+  if (isset($account->profile_record_privacy) && $account->profile_record_privacy) 
+    $postargs .= 'reporting,peer_review,verification,data_flow,moderation';
+  if ($users_to_merge)
+    $postargs .= '&user_to_merge='.urlencode(json_encode($users_to_merge));
+  $response = data_entry_helper::http_post($url, $postargs);
+  return $response['output'];
+}
+
+/**
+ * Handle the response from a call to get_user_id on the warehouse services.
+ * @param type $account
+ * @param string $response Response from call to get_user_id (should be a json string).
+ * @param type $op
+ */
+function easy_login_handle_get_user_id_response($account, $response, &$edit=null, $op=null) {
+  $response = json_decode($response);
+  if (isset($response->userId)) {
+    if ($account->profile_indicia_user_id!=$response->userId) {
+      easy_login_store_value("name='profile_indicia_user_id'", $account->uid, $response->userId, $edit);
+      if (empty($account->profile_indicia_user_id))
+        drupal_set_message(t('Your user account is now linked to the central records database.'));
+      else
+        drupal_set_message(t('Your user account link to the central records database has been updated.'));
+    }
+    if (isset($response->attrs)) {
+      // got a list of profile attributes to update
+      foreach($response->attrs as $caption => $value) {
+        easy_login_store_value("title='$caption'", $account->uid, $value, $edit);
+      }
+    }
+  } elseif (isset($response->possibleMatches)) {
+    $_SESSION['multiple_users_to_resolve'] = $response->possibleMatches;
+    $_SESSION['uid_to_resolve'] = $account->uid;
+    drupal_goto('resolve_multiple_users');
+  } elseif (isset($response->error))
+    drupal_set_message('The account details you have provided have been accepted but there is a problem linking you to the central records database.', 'warning');
+    drupal_set_message($response->error, 'warning');
+}
+
+/**
+ * Internal function to store a changed field value in the profile.
+ */
+function easy_login_store_value($filter, $uid, $value, $edit) {
+  $r = db_fetch_array(db_query("SELECT fid, name FROM {profile_fields} WHERE $filter"));
+  if (isset($edit[$r['name']]))
+    $edit[$r['name']] = $value;
+  else {
+    db_query("DELETE FROM {profile_values} WHERE fid = %d AND uid = %d", $r['fid'], $uid);
+    db_query("INSERT INTO {profile_values} (fid, uid, value) VALUES (%d, %d, '%s')", $r['fid'], $uid, $value);
+  }
+}
+/**
+ * Alter the account form to load possible options for location and taxon group from the warehouse.
+ */
+function easy_login_form_alter(&$form, &$form_state, $form_id) {
+  global $user;
+  if (($form_id === 'user_profile_form' || $form_id === 'user_register') && array_key_exists('Preferences', $form)) {
+    if (!isset($user->profile_last_name))
+      profile_load_profile($user);
+    iform_load_helpers(array('data_entry_helper'));
+    $readAuth = data_entry_helper::get_read_auth(variable_get('indicia_website_id', ''), variable_get('indicia_password', ''));
+    // The fields can be hidden for sites that don't want them, so check they exist on the form.
+    if (isset($form['Preferences']['profile_location']) || isset($form['Preferences']['profile_location_expertise'])) {
+      $locations=easy_login_get_locations($readAuth,'indicia_profile_location_type_id');
+      if (isset($form['Preferences']['profile_location']))
+        $form['Preferences']['profile_location']['#options'] = $locations;
+      if ($form_id === 'user_profile_form' && isset($form['Preferences']['profile_location_expertise']))
+        $form['Preferences']['profile_location_expertise']['#options'] = $locations;
+    }
+    if (isset($form['Preferences']['profile_location_collation'])) {
+      $locations=easy_login_get_locations($readAuth,'indicia_profile_collation_location_type_id');
+      $form['Preferences']['profile_location_collation']['#options'] = $locations;
+    }
+    if (isset($form['Preferences']['profile_taxon_groups']) || isset($form['Preferences']['profile_taxon_groups_expertise'])) {
+      // Load the list of taxon groups. If we have a master list setting for the site, use this to ensure we only pick up
+      // groups that are in use on the site.
+      $response = data_entry_helper::get_population_data(array(
+        'report' => 'library/taxon_groups/taxon_groups_used_in_checklist',
+        'extraParams' => $readAuth + array('taxon_list_id'=>variable_get('iform_master_checklist_id', ''))
+      ));
+      $groups=array();
+      foreach ($response as $group) {
+        $groups[$group['id']]=$group['title'];
+      }
+      if (isset($form['Preferences']['profile_taxon_groups'])) {
+        $form['Preferences']['profile_taxon_groups']['#options'] = $groups;
+        $form['Preferences']['profile_taxon_groups']['#prefix'] = '<div class="inline-checkboxes taxon-groups">';
+        $form['Preferences']['profile_taxon_groups']['#suffix'] = '</div>';
+      }
+      if ($form_id === 'user_profile_form' && isset($form['Preferences']['profile_taxon_groups_expertise'])) {
+        $form['Preferences']['profile_taxon_groups_expertise']['#options'] = $groups;
+        $form['Preferences']['profile_taxon_groups_expertise']['#prefix'] = '<div class="inline-checkboxes taxon-groups">';
+        $form['Preferences']['profile_taxon_groups_expertise']['#suffix'] = '</div>';
+      }
+    }
+    if ($form_id === 'user_profile_form' && isset($form['Preferences']['profile_surveys_expertise']) && user_access('administer users')) {
+      if (!empty($form['Preferences']['profile_surveys_expertise']['#default_value'])) {
+        $surveys=unserialize($form['Preferences']['profile_surveys_expertise']['#default_value']);
+        $qry = json_encode(array('in'=>array('id', array_values($surveys))));
+        $result = data_entry_helper::get_population_data(array(
+          'table' => 'survey',
+          'extraParams'=>$readAuth + array('query'=>$qry, 'sharing'=>'verification')
+        ));
+        // convert result array to correct format for sub_list control
+        $surveys = array();
+        foreach($result as $row)
+          // fieldname, caption and value
+          $surveys[]=array('default'=>$row['id'], 'caption'=>$row['title'], 'fieldname'=>'profile_surveys_expertise[]');
+      } else {
+        $surveys = array();
+      }
+      require_once('easy_login.setup.inc');
+      $fields = _easy_login_profile_fields();
+      $form['Preferences']['profile_surveys_expertise'] = array(
+        '#value' => data_entry_helper::sub_list(array(
+          'label' => t($fields['profile_surveys_expertise']['title']),
+          'fieldname'=>'profile_surveys_expertise',
+          'table'=>'survey',
+          'valueField'=>'id',
+          'captionField'=>'title',
+          'extraParams' => $readAuth + array('sharing'=>'verification'),
+          'default'=>$surveys,
+          'class'=>'control-width-5',
+          'addToTable'=>false
+        ))
+      );
+    }
+    global $user;
+    $thisUser = $user;
+    // If we are editing someone else's form, then let's load their user account.
+    if (isset($form['_account']['#value'])) {
+      $values = $form['_account']['#value'];
+      if (isset($values->uid))
+        $thisUser = user_load($values->uid);
+    }
+    // If the user is a verifier but the person editing the account has no rights to change the settings, then add read only descriptions
+    // of verification settings. We'll remove the actual fields in a moment.
+    // The verification permission is usually created by adding a verification form with the 
+    // iForm module, checking "View access control" and setting "Permission name for view
+    // access control" to "verification"
+    if (user_access('verification', $thisUser) && !user_access('administer users')) {
+      $verification_info =  array();
+      $verification_info[] = t('Your locality for verification: !items.', 
+          array('!items' => _easy_login_get_profile_field_as_list('location', $user, 'profile_location_expertise', 'name', $readAuth)));
+      $verification_info[] = t('Your taxon groups for verification: !items.', 
+          array('!items' => _easy_login_get_profile_field_as_list('taxon_group', $user, 'profile_taxon_groups_expertise', 'title', $readAuth)));
+      $verification_info[] = t('Your surveys for verification: !items.', 
+          array('!items' => _easy_login_get_profile_field_as_list('survey', $user, 'profile_surveys_expertise', 'title', $readAuth)));
+      $form['Preferences']['verification_info'] = array('#value' => '<div class="form-item"><label>' . t('Verification settings') . '</label><ul><li>' .
+          implode("</li>\n<li>", $verification_info) . '</li></ul>' . 
+          '<div class="description">' . t('If you want to change any of these settings, please contact the website administrator.') . '</div></div>');
+    }
+    if (user_access('collate regional records', $thisUser) && !user_access('administer users')) {
+      $form['Preferences']['collation_info'] = array('#value' => '<div class="form-item"><label>' . t('Record collation settings') . '</label><ul><li>' .
+          t('Your locality for collation: !items.', 
+          array('!items' => _easy_login_get_profile_field_as_list('location', $user, 'profile_location_collation', 'name', $readAuth))) . '</ul></li>' . 
+          '<div class="description">' . t('If you want to change this setting, please contact the website administrator.') . '</div></div>');
+      if (isset($form['Preferences']['profile_location_collation'])) {
+        $form['Preferences']['profile_location_collation']['#attributes'] = array('disabled' => 'true');
+        $form['Preferences']['profile_location_collation']['#description'] = t('If you want to change this setting, please contact the website administrator.');
+      }
+    }
+    // If the user is not a verifier, or the person editing the account has no rights to change verification user settings, remove the fields.
+    if (!user_access('verification', $thisUser) || !user_access('administer users')) {
+      $form['Preferences']['profile_location_expertise']['#access'] = FALSE;
+      $form['Preferences']['profile_taxon_groups_expertise']['#access'] = FALSE;
+      $form['Preferences']['profile_surveys_expertise']['#access'] = FALSE;
+    }
+    // Is the user being edited a regional collator? If not, no need for the profile field
+    if (!user_access('collate regional records', $thisUser) || !user_access('administer users')) {
+      $form['Preferences']['profile_location_collation']['#access'] = FALSE;
+    }
+    drupal_add_css(drupal_get_path('module','iform').'/media/css/default_site.css');
+    handle_resources();
+  }
+  if ($form_id === 'user_profile_form' || $form_id === 'user_register') {
+    $form['#validate'][] = 'easy_login_submit_preferences';
+    drupal_add_js(drupal_get_path('module', 'easy_login').'/easy_login_form.js');
+  }
+}
+
+function easy_login_get_locations($readAuth, $typeVarName) {
+  // Load the list of locations, filtered by location type if the setting is defined.
+  $extraParams=array('orderby'=>'name', 'sortdir'=>'ASC');
+  if ($locType=variable_get($typeVarName, ''))
+    $extraParams['location_type_id']=$locType;
+  $response = data_entry_helper::get_population_data(array(
+    'table' => 'location',
+    'extraParams' => $readAuth + $extraParams,
+    'nocache' => true
+  ));
+  $locations=array(''=>t('<Please select>'));
+  foreach ($response as $location) {
+    $locations[$location['id']]=$location['name'];
+  }
+  return $locations;
+}
+
+/**
+ * Our sub_list control does not automatically submit, so use the validate hook to reformat
+ * the sub_list data into the correct format for Drupal to save it.
+ */
+function easy_login_submit_preferences($form, &$form_state) {
+  if ($form_state['values']['profile_u16']===0 || $form_state['values']['profile_u16']===null)
+    unset($form_state['values']['profile_dob']);
+  else {
+    $dob=$form_state['values']['profile_dob'];
+    if ($dob) {
+      $inputDate=strtotime("$dob[year]-$dob[month]-$dob[day]");
+      $now=time();
+      if ($inputDate>$now)
+        form_set_error('profile_dob', t('The date of birth has to be in the past.'));  
+      elseif ($inputDate<strtotime('-16 years', $now))
+        form_set_error('profile_dob', t('You\'ve ticked the Under 16 box, but your birth date indicates you are over 16. Please correct.'));  
+    }
+  }
+  if (isset($_POST['profile_surveys_expertise']))
+    $form_state['values']['profile_surveys_expertise']=serialize($_POST['profile_surveys_expertise']);
+  else
+    unset($form_state['values']['profile_surveys_expertise']);
+}
+
+/**
+ * Implement hook_variable_info.
+ * Returns information about the variables used by this module, allowing an admin interface
+ * to be created. We use a couple of custom extensions to allow these to be added to the Indicia
+ * settings page.
+ */
+function easy_login_variable_info($options) {
+  $variable['indicia_profile_location_type_id']=array(
+    'title'=>t('Location type for profile locality options'),
+    'description'=>t('The location type on the warehouse used to filter the '.
+      'locations available on the user profile edit pages for selection of the preferred '.
+      'locality and locality of expertise.'),
+    'type'=>'number',
+    'subtype'=>'termlists_term:location_types',
+    'default'=>'',
+    'addToIndiciaSettingsPage'=>true
+  );
+  $variable['indicia_profile_collation_location_type_id']=array(
+    'title'=>t('Location type for profile collation options'),
+    'description'=>t('The ID location type on the warehouse used to filter the '.
+      'locations available on the user profile edit pages for selection of the locality '.
+      'which a user has collation rights to. A typical use of this would be to filter the '.
+      'locations available for selection to LRC boundaries.'),
+    'type'=>'number',
+    'subtype'=>'termlists_term:location_types',
+    'default'=>'',
+    'addToIndiciaSettingsPage'=>true
+  );
+  return $variable;
+}
+
+/**
+* Implementation of hook_perm.
+* Declare a permission for regional collators. 
+* @return array An array of valid permissions for the module
+*/
+function easy_login_perm() {
+  return array('collate regional records');
+}

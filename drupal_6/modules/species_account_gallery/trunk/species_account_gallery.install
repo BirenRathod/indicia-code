@@ -1,0 +1,26 @@
+<?php
+// $Id$
+
+/** 
+ * Implementation of hook_install.
+ * Create default variables.
+ */
+function species_account_gallery_install() {
+}
+
+/** 
+ * Implementation of hook_uninstall.
+ * Clean up variables.
+ */
+function species_account_gallery_uninstall() {
+  variable_del('sag_header');
+  variable_del('sag_vid');
+  variable_del('sag_gallery_mode');
+  variable_del('sag_max_image_weight');
+  variable_del('sag_max_image_count');
+  variable_del('sag_ranks_combine');
+  variable_del('sag_hide_ranks');
+  variable_del('sag_page_break_ranks');
+  variable_del('sag_load_mode');
+}
+

@@ -1,0 +1,8 @@
+core = "6.x"
+dependencies[] = "uuid_features"
+description = "A news story introducing Instant Indicia with some handy links for getting started"
+features[uuid_node][] = "dec4465b-bcf4-11e0-b59d-7b3ab1cadf00"
+name = "Indicia Welcome"
+package = "Indicia Miscellaneous Features"
+project = "indicia_welcome"
+version = "6.x-1.0-alpha1"

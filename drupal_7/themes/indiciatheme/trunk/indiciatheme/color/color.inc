@@ -1,0 +1,71 @@
+<?php
+$info = array(
+  // Fields
+  'fields' => array(
+    'base'     => t('Base'),
+    'top'      => t('Body top'),
+    'bottom'      => t('Body bottom'),
+    'pagebg'   => t('Page background'),
+    'headerbg' => t('Header background'),
+    'sitename' => t('Site name'),
+    'slogan'   => t('Slogan'),
+    'mmenubg'  => t('Main menu background'),
+    'mmenubdr' => t('Main menu border'),
+    'mmenu'    => t('Main Menu links'),
+    'link'     => t('Links'),
+    'btntop'   => t('Button gradient top'),
+    'btnbottom'=> t('Button gradient bottom'),
+    'ftop'     => t('Footer top'),
+    'fbottom'  => t('Footer bottom'),
+    'text'     => t('Text'),
+    'blockh'   => t('Block title background'),
+    'blockht'  => t('Block title text'),
+    'blockbg'  => t('Block body background'),
+    'borders'  => t('Borders'),
+    'sticky'   => t('Sticky teaser'),
+  ),
+  // Pre-defined color schemes.
+  'schemes' => array(
+    'default' => array(
+      'title' => t('Whites'),
+      'colors' => array(
+        'base'     => '#eafcef',
+        'top'      => '#eeeeee',
+        'bottom'   => '#f6f6f6',
+        'pagebg'   => '#ffffff',
+        'headerbg' => '#fffeff',
+        'sitename' => '#222223',
+        'slogan'   => '#222322',
+        'mmenubg'  => '#fffdff',
+        'mmenubdr' => '#333333',
+        'mmenu'    => '#222222',
+        'link'     => '#006699',
+        'btntop'   => '#00679A',
+        'btnbottom'=> '#00578A',
+        'ftop'     => '#181818',
+        'fbottom'  => '#343434',
+        'text'     => '#555555',
+        'blockh'   => '#444445',
+        'blockht'  => '#fffffc',
+        'blockbg'  => '#fcfcfc',
+        'borders'  => '#e9e9e9',
+        'sticky'   => '#f7f7f7',
+      ),
+    )
+  ),
+  
+  'css' => array(
+    'color/colors.css',
+    'css/indiciatheme.css',
+  ),
+  'copy' => array(
+    'logo.png',
+  ),
+  'fill' => array(),
+  'gradients' => array(),
+  'slices' => array(),
+  'blend_target' => '#ffffff',
+  'preview_image' => 'color/preview.png',
+  'preview_css' => 'color/preview.css',
+  'base_image' => 'color/base.png',
+);

@@ -1,0 +1,45 @@
+<?php
+
+/**
+ * Implements hook_menu to add a My Data Summary tab to the user account.
+ */
+function my_account_data_summary_menu() {
+  $items['user/%user/my_account_data'] = array(
+    'title' => 'My Data Summary',
+    'page callback' => 'my_account_data_summary_output',
+    'page arguments' => array(1),
+    'access callback' => 'user_edit_access',
+    'access arguments' => array(1),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => -50
+  );
+  return $items;
+}
+
+/**
+ * Output function for the My Data Summary tab. Loads a report showing the number of records, species, verified records 
+ * and records they have verified themselves.
+ */
+function my_account_data_summary_output($account) {
+  iform_load_helpers(array('report_helper'));
+  $readAuth = report_helper::get_read_auth(variable_get('indicia_website_id', 0), variable_get('indicia_password', ''));
+  if (!isset($account->profile_indicia_user_id))
+    profile_load_profile($account);
+  if (empty($account->profile_indicia_user_id)) {
+    drupal_set_message(t('Before viewing a summary of your data, you must associate your login with the central records database. To do this, '.
+        'please ensure that at least your surname is filled in on the Edit tab under the Name category, then save your account.'));
+    return t('No data available');
+  }
+  $params['user_id'] = $account->profile_indicia_user_id;
+  if (!user_access('verifier'))
+    // drop the last row, which is the number of verified records, since they are not an expert.
+    $params['limit']=3;
+  $grid = report_helper::report_grid(array(
+    'dataSource' => 'library/totals/species_occurrence_verified_counts_for_user',
+    'mode' => 'report',
+    'extraParams' => $readAuth + $params
+  ));
+  handle_resources();
+  return $grid;
+}
+

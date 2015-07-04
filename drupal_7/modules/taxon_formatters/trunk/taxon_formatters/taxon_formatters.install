@@ -1,0 +1,49 @@
+<?php
+/**
+ * @file
+ * Install, update and uninstall functions for the taxon_formatters module.
+ */
+
+
+/**
+ * Implements hook_install().
+ */
+function taxon_formatters_install() {
+  watchdog('install', 'taxon_formatters');
+}
+
+/**
+ * Implements hook_schema().
+ */
+function taxon_formatters_schema() {
+  $schema['taxon_formatters_preset'] = array(
+    'fields' => array(
+      'presetid' => array(
+        'description' => 'The primary identifier for a taxon_formatters_preset.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'presetname' => array(
+        'description' => 'The primary identifier for a node.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => 'The type of formatter.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'settings' => array(
+        'description' => 'The JSON config for the formatter.',
+        'type' => 'text',
+        'length' => 8000,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('presetid'),
+  );
+  return $schema;
+}

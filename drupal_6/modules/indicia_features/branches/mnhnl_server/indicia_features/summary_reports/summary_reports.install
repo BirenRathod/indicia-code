@@ -1,0 +1,13 @@
+<?php
+
+/**
+ * When enabling the summary reports module, display a message about creating content of type
+ * summary report.
+ */
+function summary_reports_enable() {
+  drupal_set_message(t('The summary reports module has been enabled. To create new reports, select Content Management > Create content > Summary Report '.
+      'from the admin menu. Reports will then be available from the Summarise menu option.'));
+  // summary reports are not promoted to home page by default and are not commentable.
+  variable_set('node_options_summary_report', array('status'));
+  variable_set('comment_summary_report', COMMENT_NODE_DISABLED);
+}

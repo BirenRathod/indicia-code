@@ -1,0 +1,499 @@
+<?php
+// $Id$
+
+/**
+* Display help and module information
+* @param path which path of the site we're displaying help
+* @param arg array that holds the current path as would be returned from arg() function
+* @return help text for the path
+*/
+function iform_help($path, $arg) {
+  $output = '';  //declare your output variable
+  switch ($path) {
+    case "admin/help#iform":
+      $output = '<p>'.  t("Generates Indicia powered data entry forms.") .'</p>';
+      break;
+  }
+  return $output;
+} // function iform_help
+
+/**
+* Valid permissions for this module
+* @return array An array of valid permissions for the iform module
+*/
+function iform_perm() {
+  $retVal = array('access iform', 'create iform', 'edit iform', 'edit own iform');
+  // Go through every IForm node.
+  //   Get the particular iform, check if it has a perms method.
+  //   if yes, call it and add to the return list
+  $results = db_query('SELECT n.nid, i.iform FROM {iform} i, {node} n WHERE i.nid = n.nid');
+  while($result = db_fetch_object($results)) {
+    require_once drupal_get_path('module', 'iform').'/client_helpers/data_entry_helper.php';
+    require_once drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/'.$result->iform.'.php';
+    if(method_exists('iform_'.$result->iform, 'get_perms')) {
+      $perms = call_user_func(array('iform_'.$result->iform, 'get_perms'), $result->nid);
+      $retVal = array_merge($retVal, $perms);
+    }
+  }
+  // Also look for then generic IForm module setting to have custom permissions for this form
+  $results = db_query("SELECT n.nid, n.title FROM {iform} i, {node} n WHERE n.nid=i.nid AND i.params like '%\"view_access_control\":1%'");
+  while($result = db_fetch_object($results)) {
+    $retVal[] = 'access iform '.$result->nid;
+  }
+  return $retVal;
+
+} // function iform_perm()
+
+/**
+ * Implementation for hook_node_info.
+ * Returns summary information for the content type.
+ * @return array Summary information array.
+ */
+function iform_node_info() {
+  return array(
+    'iform' => array(
+      'name' => t('Indicia forms'),
+      'module' => 'iform',
+      'description' => t("Create Indicia powered data entry forms."),
+      'title_label' => t("Page title"),
+      'body_label' => t("Page introductory text"),
+    )
+  );
+} // function iform_node_info
+
+/**
+ * Implements hook_access.
+ * Authentication for access to create, view and delete indicia form pages.
+ * @param $op
+ * @param $node
+ * @param $account
+ * @return unknown_type
+ */
+function iform_access($op, $node, $account) {
+  if ($op == 'create') {
+    // Only users with permission to do so may create this node type.
+    return user_access('create iform', $account);
+  }
+
+  if ($op == 'view') {
+    // check if this form has per-node view access control
+    $results = db_query("SELECT nid FROM {iform} WHERE nid=".$node->nid." AND params LIKE '%\"view_access_control\":1%'");
+    if ($results->num_rows>0)
+      // Use a per node setting to control access
+      return user_access('access iform '.$node->nid, $account);
+    else
+      // Use the generic setting for Indicia forms to control access.
+      return user_access('access iform', $account);
+  }
+
+  // Users may have access to edit (update/delete) their own forms, or any form.
+  if ($op == 'update' || $op == 'delete') {
+    if (user_access('edit own iform', $account) && ($account->uid == $node->uid)) {
+      return TRUE;
+    } else {
+      return user_access('edit iform', $account);
+    }
+  }
+}
+
+/**
+ * Implement hook_form to get the Drupal admin form for an iform node.
+ * @param $node
+ * @param $form_state
+ * @return unknown_type
+ */
+function iform_form(&$node, $form_state) {
+  require_once drupal_get_path('module', 'iform').'/client_helpers/form_helper.php';
+  form_helper::$js_path = base_path() . drupal_get_path('module', 'iform').'/media/js/';
+  form_helper::$css_path = base_path() . drupal_get_path('module', 'iform').'/media/css/';
+  form_helper::enable_validation('node-form');
+  if (isset($form_state['post'])) {
+    $node = (object)($form_state['post'] + (array)$node);
+  }
+  $type = node_get_types('type', $node);
+
+  // We need to define form elements for the node's title and body.
+  $form['title'] = array(
+    '#type' => 'textfield',
+    '#title' => check_plain($type->title_label),
+    '#required' => TRUE,
+    '#default_value' => $node->title,
+    '#weight' => 0
+  );
+  // We want the body and filter elements to be adjacent. We could try doing
+  // this by setting their weights, but another module might add elements to the
+  // form with the same weights and end up between ours. By putting them into a
+  // sub-array together, we're able force them to be rendered together.
+  $form['body_filter']['body'] = array(
+    '#type' => 'textarea',
+    '#title' => check_plain($type->body_label),
+    '#default_value' => $node->body,
+    '#rows' => 10,
+    '#required' => FALSE
+  );
+  $form['body_filter']['filter'] = filter_form($node->format);
+
+  // Define the new form fields
+  $form['iform_forms'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Form Selection'),
+    '#tree' => FALSE,
+    '#weight' => 6
+  );
+  $form['iform_forms']['picker'] = array(
+    '#value' => form_helper::prebuilt_form_picker(array(
+      'form' => $node->iform,
+      'website_id' => isset($node->params['website_id']) ? $node->params['website_id'] : '',
+      'password' => isset($node->params['password']) ? $node->params['password'] : ''
+    ))
+  );
+  if ($node->iform) {
+    $form['iform_forms']['form-params'] = array(
+      '#value' => form_helper::prebuilt_form_params_form(array(
+        'form' => $node->iform,
+        'currentSettings' => $node->params,
+        'readAuth' => form_helper::get_read_auth($node->params['website_id'], $node->params['password'])
+      )),
+      '#prefix' => '<div id="form-params">',
+      '#suffix' => '</div>'
+    );
+    form_helper::enable_validation('node-form');
+  } else {
+    $form['iform_forms']['form-params'] = array(
+      '#value' => ' ', // must be a space or Drupal drops the div
+      '#prefix' => '<div id="form-params">',
+      '#suffix' => '</div>'
+    );
+  }
+  form_helper::add_resource('defaultStylesheet');
+  handle_resources();
+  return $form;
+}
+
+/**
+ * Retrieves the parameters required by an iform and creates a JSON string to store
+ * them in the database. The iform data must be in the $_POST array.
+ *
+ * @return string JSON encoded string containing the parameter values.
+ */
+function get_custom_param_values($node) {
+  // We need to grab the parameter values for the custom parameters that were defined by the form.
+  if ($_POST['iform'] && $_POST['iform']!=-1) {
+    require_once drupal_get_path('module', 'iform').'/client_helpers/form_helper.php';
+    ob_start();
+    $params = form_helper::get_form_parameters($_POST['iform']);
+    ob_end_clean();
+    $idx=0;
+    $values = array();
+    // always want the website id and password
+    $values['website_id']=$_POST['website_id'];
+    $values['password']=$_POST['password'];
+    // now get the rest of the parameters
+    foreach ($params as $param) {
+      $values[$param['fieldname']] = $_POST[$param['fieldname']];
+    }
+    // Json encode the parameters to store them in the Drupal database.
+    return json_encode($values);
+  } else {
+    return '';
+  }
+}
+
+/**
+* Implementation of hook_insert, which saves iform-specific information
+* into the iform table
+* @param node object
+*/
+function iform_insert($node) {
+  $params=get_custom_param_values($node);
+  db_query("INSERT INTO {iform} (nid, iform, params) VALUES (%d, '%s', '%s')",
+      $node->nid, $_POST['iform'], $params);
+}
+
+/**
+* Implementation of hook_update, which saves iform-specific information
+* into an existing record in the iform table
+* @param node object
+*/
+function iform_update($node) {
+  $params=get_custom_param_values($node);
+  db_query("UPDATE {iform} SET iform='%s', params='%s' WHERE nid=%d", $_POST['iform'], $params, $node->nid);
+}
+
+/**
+* Implementation of hook_delete, which deletes iform-specific information
+* when a node is removed.
+* @param node object
+*/
+function iform_delete($node) {
+  db_query("DELETE FROM {iform} WHERE nid=%d", $node->nid);
+}
+
+/**
+* Implemenation of hook_load
+* @param node object to load additional information for
+* @return object with iform fields
+*/
+function iform_load($node) {
+  $t = db_fetch_object(db_query('SELECT iform, params FROM {iform} WHERE nid = %d', $node->nid));
+  $params=json_decode($t->params, true);
+  unset($t->params);
+  $t->params = array();
+  // Merge the params into the loaded object
+  foreach($params as $k => $v) $t->params[$k] = $v;
+  return $t;
+}
+
+/**
+* Implemenation of hook_menu.
+*/
+function iform_menu() {
+  $items = array();
+  // Create an admin entry to display the diagnostics panel.
+  $items['admin/settings/iform_diagnostics'] = array(
+    'title' => 'IForm Diagnostics',
+    'description' => 'Run a configuration check for the IForm module.',
+    'page callback' => 'iform_diagnostics',
+    'access arguments' => array('create iform'),
+    'type' => MENU_NORMAL_ITEM
+  );
+  return $items;
+}
+
+/**
+ * Implementation for hook_view. Prepares the displayed data entry form.
+ * @param $node
+ * @param $teaser
+ * @param $page
+ * @return unknown_type
+ */
+function iform_view($node, $teaser = FALSE, $page = FALSE) {
+  require_once drupal_get_path('module', 'iform').'/client_helpers/form_helper.php';
+  global $language;
+  $node = node_prepare($node, $teaser);
+  if ($node->iform && $node->iform!=-1) {
+    iform_load_language_files($node);
+
+    $args = array('language' => $language->language);
+
+    require_once drupal_get_path('module', 'iform').'/client_helpers/data_entry_helper.php';
+    require_once drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/'.$node->iform.'.php';
+    ob_start();
+    // force the path of js and css files to be relative to Drupal, not from the Warehouse
+    data_entry_helper::$js_path = base_path() . drupal_get_path('module', 'iform').'/media/js/';
+    data_entry_helper::$css_path = base_path() . drupal_get_path('module', 'iform').'/media/css/';
+    // also force the theme path to be local
+    global $indicia_theme_path;
+    $indicia_theme_path = drupal_get_path('module', 'iform').'/media/themes/';
+    // if there is a template override file, include it
+    if (file_exists(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/templates/'.$node->iform.'.php')) {
+      require(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/templates/'.$node->iform.'.php');
+    }
+    if (file_exists(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/templates/node.'.$node->nid.'.php')) {
+      require(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/templates/node.'.$node->nid.'.php');
+    }
+    // The form will always need to know the website id and password
+    $args['website_id']=$node->params['website_id'];
+    $args['password']=$node->params['password'];
+    // we need to grab each requested parameter from the node to pass to the form
+    $params = form_helper::get_form_parameters($node->iform);
+
+    foreach ($params as $param) {
+      $args[$param['fieldname']] = $node->params[$param['fieldname']];
+    }
+    $r = '';
+    $response = null;
+    // if the form defines some remembered fields, call it from within this module rather than inside
+    // indicia so it can have access to the arguments
+    if (method_exists('iform_'.$node->iform, 'indicia_define_remembered_fields')) {
+      call_user_func(array('iform_'.$node->iform, 'indicia_define_remembered_fields'),$args);
+    }
+    if ($_POST && (array_key_exists('website_id', $_POST)) && method_exists('iform_'.$node->iform, 'get_submission')) {
+      // Ask the form to submit itself
+      $s = call_user_func(array('iform_'.$node->iform, 'get_submission'), $_POST, $args);
+      // if for some reason the iform gives back an empty submission, ignore it
+      if($s){
+        // does this Drupal node have any custom validation code?
+        if (file_exists(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/validation/validate.'.$node->nid.'.php')) {
+          require_once(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/validation/validate.'.$node->nid.'.php');
+          $errors = iform_custom_validation($_POST);
+          if (!empty($errors)) {
+            $r .= data_entry_helper::dump_errors(array('errors'=>$errors));
+          }
+        }
+        if (empty($errors)) {
+          $response = data_entry_helper::forward_post_to('save', $s);
+          // Does the form redirect after success?
+          if (is_array($response) && array_key_exists('success', $response) &&
+              array_key_exists('redirect_on_success', $args) && $args['redirect_on_success']) {
+            $url = $args['redirect_on_success'];
+            drupal_goto($url, 'table='.$response['outer_table'].'&id='.$response['outer_id']);
+          } else {
+            // This dumps errors, and/or a success message if no redirection.
+            $r .= data_entry_helper::dump_errors($response);
+          }
+        }
+      }
+    }
+
+    // Make buttons have a hover effect
+    data_entry_helper::$javascript .= "
+$('.ui-state-default').live('mouseover', function() {
+  $(this).addClass('ui-state-hover');
+});
+$('.ui-state-default').live('mouseout', function() {
+  $(this).removeClass('ui-state-hover');
+});\n";
+
+    // Now retrieve the form content
+    try {
+      $r .= call_user_func(array('iform_'.$node->iform, 'get_form'), $args, $node, $response);
+    } catch (Exception $e) {
+      watchdog('debug', 'Error occurred loading form');
+      watchdog('debug', $e->getMessage());
+      $r =  $e->getMessage();
+    }
+
+    // and also add all the javascript required by the form to the HTML head. Note that any ad-hoc JS
+    // is inserted at the later in the head, otherwise we can't guarantee that any plugins created won't
+    // be overwritten by subsequent references to the jQuery js file added to the header by other parts of Drupal.
+    handle_resources();
+
+    // Link in the default site css
+    drupal_add_css(drupal_get_path('module', 'iform').'/media/css/default_site.css');
+
+    // Link in the custom css file if present. Drupal skips it if missing.
+    drupal_add_css(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/css/'.$node->iform.'.css');
+    drupal_add_css(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/css/node.'.$node->nid.'.css');
+
+    // Link in the form's custom js file if present.
+    if (file_exists(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/js/'.$node->iform.'.js'))
+      drupal_add_js(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/js/'.$node->iform.'.js');
+    // Link in the specific node's custom js file if present.
+    if (file_exists(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/js/node.'.$node->nid.'.js'))
+      drupal_add_js(drupal_get_path('module', 'iform').'/client_helpers/prebuilt_forms/js/node.'.$node->nid.'.js');
+
+    ob_end_clean();
+    $node->content['myfield']=array(
+      '#value' => $r,
+      '#weight' => 1
+    );
+  }
+  return $node;
+}
+
+function handle_resources() {
+  if (isset(data_entry_helper::$required_resources)) {
+    $resourceList = data_entry_helper::get_resources();
+    foreach (data_entry_helper::$required_resources as $resource)
+    {
+      if (isset($resourceList[$resource]['stylesheets'])) {
+        foreach ($resourceList[$resource]['stylesheets'] as $s) {
+          $s = preg_replace('/^'.str_replace('/', '\/', base_path()).'/', '', $s);
+          drupal_add_css($s);
+        }
+      }
+      if (isset($resourceList[$resource]['javascript'])) {
+        foreach ($resourceList[$resource]['javascript'] as $j) {
+          // We must not add jQuery twice. So for this file, add Drupal's own version if not already done.
+          if (strcasecmp(substr($j, -9), 'jQuery.js')==0)
+            drupal_add_js('misc/jquery.js', 'core');
+          else if (strcasecmp(substr($j, -23), 'jquery-ui.custom.min.js')==0)
+            jquery_ui_add(array('jquery-ui'));
+          else if (substr($j, 0, 4)=='http') {
+            // JS file external to Drupal. add_js will not work, so insert it into the head manually.
+            drupal_set_html_head("<script type='text/javascript' src='$j'></script>");
+          } else if (strcasecmp(substr($j, -20), 'jquery-ui.effects.js')!=0) {
+            // JS file within Drupal structure. Drupal will add base_path() to the beginning as it expects a relative path not absolute
+            $j = preg_replace('/^'.str_replace('/', '\/', base_path()).'/', '', $j);
+            drupal_add_js($j, 'module');
+          }
+        }
+      }
+    }
+  }
+  data_entry_helper::setup_jquery_validation_js();
+  $script = '';
+  if (!empty(data_entry_helper::$javascript) || !empty(data_entry_helper::$late_javascript)) {
+    $script = "jQuery(document).ready(function() {\n".
+      data_entry_helper::$javascript."\n".
+      data_entry_helper::$late_javascript."\n".
+      "});\n";
+  }
+  if (!empty(data_entry_helper::$onload_javascript)) {
+    $script .= "window.onload = function() {\n".
+      data_entry_helper::$onload_javascript."\n".
+      "};\n";
+  }
+  if ($script) {
+    drupal_add_js($script, 'inline');
+  }
+  // clear the scripts incase we load 2 iform nodes onto 1 page.
+  data_entry_helper::$javascript = '';
+  data_entry_helper::$late_javascript = '';
+  data_entry_helper::$onload_javascript = '';
+}
+
+/**
+* Implementation of hook_form_alter.
+* Ensure the action of the form does not get changed to the AHAH uri during an AJAX request for iform
+* parameter controls.
+*/
+function iform_form_alter(&$form, $form_state, $form_id) {
+  if ($form['type']['#value']=='iform') {
+    // Set the right #action
+    if (!empty($form['nid']['#value'])) {
+      $form['#action'] = url('node/'.$form['nid']['#value'].'/edit');
+    }
+    else {
+      $form['#action'] = url('node/add/iform');
+    }
+  }
+}
+
+function iform_diagnostics() {
+  require_once drupal_get_path('module', 'iform').'/client_helpers/data_entry_helper.php';
+  return data_entry_helper::system_check();
+}
+
+/**
+ * Loads language files defined for the form. This includes language files defined in the module folder or in the site specific
+ * Drupal folders, and also includes files named with the form name or node nid.
+ */
+function iform_load_language_files($node) {
+  global $language, $custom_terms, $custom_term_overrides;
+  $moduleLangFilePath = drupal_get_path('module', 'iform')."/client_helpers/prebuilt_forms/lang/";
+  $siteSpecificLangFilePath = file_create_path("iform/client_helpers/prebuilt_forms/lang/");
+  $formLangFileName = $node->iform.'.'.$language->language.'.php';
+  $nodeLangFileName = 'node.'.$node->nid.'.'.$language->language.'.php';
+  $formFallbackFileName = $node->iform.'.en.php';
+  // Define a priority ordered list of file names that could contain the custom terms list.
+  if ($siteSpecificLangFilePath)
+    $langFiles = array(
+      $siteSpecificLangFilePath . $nodeLangFileName,
+      $siteSpecificLangFilePath . $formLangFileName,
+      $siteSpecificLangFilePath . $formFallbackFileName
+    );
+  else
+    $langFiles=array();
+  $langFiles = array_merge($langFiles, array(
+    $moduleLangFilePath       . $nodeLangFileName,
+    $moduleLangFilePath       . $formLangFileName,
+    $moduleLangFilePath       . $formFallbackFileName
+  ));
+  $custom_terms=array(); // this is an array of key value pairs
+  $custom_term_overrides=array(); // this is an array with each item a subarray of key value pairs.
+  // start at the highest priority possible language file name and loop through until we find one that defines the set of custom terms.
+  foreach ($langFiles as $langFile) {
+    if (file_exists($langFile))
+      // Found a file to include. It might define custom_terms, or might define an entry in the custom_term_overrides array
+      require $langFile;
+    // finish when we have loaded an array of custom terms.
+    if (count($custom_terms)>0) break;
+  }
+  // if there are any custom term overrides, they need to be merged into custom terms in reverse priority order.
+  $custom_term_overrides = array_reverse($custom_term_overrides);
+  foreach ($custom_term_overrides as $override_list) {
+    $custom_terms=array_merge($custom_terms, $override_list);
+  }
+}

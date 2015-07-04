@@ -1,0 +1,127 @@
+<?php
+// $Id$
+
+/**
+* Implement hook_taxon_formatter_types
+*/
+function nbn_designations_taxon_formatter_types() {
+  $formatter = array(
+    'nbn_designations' => array(
+      'title' => t('NBN Designations'),
+      // field type is tvk, tlick or brc (+GBIF?)
+      'field_type' => 'tvk',
+      // function that generates the form using Forms API, with arguments for the current settings values, type name (e.g. nbn_map) and optional $args
+      'form_callback' => 'nbn_designations_taxon_formatter_settings_form',
+      'form_args' => array() // can be used to pass arguments to the form
+    )
+  );
+  return $formatter;
+}
+
+/**
+ * This defines the drupal form used for the settings of this formatter type.
+ */
+function nbn_designations_taxon_formatter_settings_form($settings, $type, $args) {
+  $form=array();
+  if ($type=='nbn_designations') {
+    $form['registration'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Registration Key'),
+      '#description' => str_replace('{0}', 'http://www.nbn.org.uk/Guidebooks/Web-services-documentation/Resources/registration.aspx', t('NBN Web Services registration key, see <a href="{0}">'.
+          'Registration of Web Service Clients</a> for more information.')),
+      '#required' => TRUE,
+      '#default_value' => $settings['registration']
+    );
+    $form['caching'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Enable caching'),
+      '#description' => t('Cache designation data locally for better performance.'),
+      '#default_value' => $settings['caching']
+    );
+  }
+  return $form;
+}
+
+/**
+ * Implements the output theme function.
+ */
+function theme_nbn_designations_taxon_formatter_output($element, $preset) {
+  $list = nbn_designations_get_designations($element['#item']['safe_value'], $preset);
+  if (is_array($list)) {
+    $items = array();
+    foreach ($list as $designation) {
+      $items[] = theme('nbn_designations_format_item', $designation);
+    }
+    return theme('item_list', $items, null, 'ul', array('class'=>'designations-list')); 
+  } else 
+    return t("No designations found.<br/>$list");
+}
+
+/**
+ * Method to retrieve the designations list for a tvk from the web service.
+ */
+function nbn_designations_get_designations($tvk, $preset) {
+  if ($preset['settings']['caching'] && $cache = cache_get("nbn_designations:$tvk")) {    
+    return $cache->data;
+  }
+  require_once(drupal_get_path('module','taxon_formatters').'/lib/nusoap.php');
+  try {
+    $client = new nusoap_client('http://www.nbnws.net/ws_3_5/GatewayWebService?WSDL', true);
+  }
+  catch(Exception $e) {
+    $result = "<h4>The NBN Web Service is unavailable.<h4>";
+    $result .= "FAULT:  <p>Code: {$e->faultcode} >br />";
+    $result .=  "String: {$e->getMessage} </p>";
+    return $result;
+  }
+  $query = '<taxonomy:TaxonomySearchRequest xmlns:taxon="http://www.nbnws.net/Taxon" xmlns:taxonomy="http://www.nbnws.net/Taxon/Taxonomy" '.
+      'registrationKey="'.$preset['settings']['registration'].'" '.
+      'includeDesignation="1">'.
+      "<taxon:TaxonVersionKey>$tvk</taxon:TaxonVersionKey>".
+      '</taxonomy:TaxonomySearchRequest>';
+  $response = $client->call('GetTaxonomySearch', $query);    
+  // the faultstring is probably useful to users
+  if (isset($response['faultstring']))
+    drupal_set_message($response['faultstring'], 'error');
+  // in case it has all gone wrong...
+  if (!isset($response['Taxa'])) {
+    // log any failures
+    watchdog('nbn_designations', 'Failed response from an NBN designations service request: '.print_r($response, true));
+    drupal_set_message(t('The NBN Gateway designations could not be displayed. More information is in the log.'), 'error');
+    return array();
+  }
+  if ($preset['settings']['caching'] && isset($response['Taxa']['Taxon'])) {    
+    cache_set("nbn_designations:$tvk", $response['Taxa']['Taxon']['TaxonDesignations']['TaxonDesignation']);
+  }
+  if (isset($response['Taxa']['Taxon']))
+    return $response['Taxa']['Taxon']['TaxonDesignations']['TaxonDesignation'];
+  else 
+    return t("The species designation information could not be retrieved.");
+}
+
+/**
+ * Theme function for a single item in the designations list output.
+ */
+function theme_nbn_designations_format_item($element) {
+  $item = '<strong>'.$element['Designation']['name'].'</strong><br/>'.$element['Designation']['description'].'<br/>';
+  if (isset($element['source']))
+    $item .= '<em>Source:</em> '.$element['source'].'<br/>';
+  if (isset($designation['geographicalConstraint']))
+    $item .= '<em>Geographical constraint:</em> '.$designation['geographicalConstraint'].'<br/>';
+  return $item;
+}
+
+/**
+ * Implementation of hook_theme.
+ * Creates a theme function for the main output code (which probably should not be overridden) and a theme
+ */
+function nbn_designations_theme() {
+  $theme = array();
+  $theme["nbn_designations_taxon_formatter_output"] = array(
+      'arguments' => array('element' => NULL),
+  );
+  $theme["nbn_designations_format_item"] = array(
+      'arguments' => array('element' => NULL),
+  );
+  return $theme;
+}

@@ -1,0 +1,12 @@
+<?php
+
+/**
+ * Display a message describing the requirements this feature has on the structure of the survey, in order to detect 
+ * who records belong to.
+ */
+function my_records_enable() {
+  drupal_set_message(t('You have enabled the My Records feature, which adds a My Records report to the menu allowing a logged in user to browse their own '.
+      'records in a simple grid. In order for this to work, please ensure that the survey you are recording against has the <em>CMS User ID</em> attribute linked to it. '.
+      'Otherwise the My Records report will display no records. You might also like to link the <em>email</em> and <em>CMS Username</em> attributes in order to '.
+      'store enough information against the record to be able to identify the recorder.'));
+}

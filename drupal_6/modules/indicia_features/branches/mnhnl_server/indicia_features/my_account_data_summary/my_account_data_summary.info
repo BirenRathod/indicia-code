@@ -1,0 +1,8 @@
+core = "6.x"
+dependencies[] = "easy_login"
+description = "A summary tab that appears on My Account for a user's data."
+name = "My account data summary"
+package = "Indicia Miscellaneous Features"
+features[features_api][] = "api:1"
+project = "my_account_data_summary"
+version = "6.x-1.0-alpha1"

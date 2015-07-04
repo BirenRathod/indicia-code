@@ -1,0 +1,7 @@
+; $Id: $
+name = Taxon Identifiers
+description = Defines a field type for taxon identifiers such as taxon version keys
+core = 7.x
+package = Fields
+dependencies[] = field
+

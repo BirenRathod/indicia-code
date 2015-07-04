@@ -1,0 +1,6 @@
+A template theme overriding a mobile_jquery theme. Developed for the purpose of BRC's Indicia mobile applicatoins.
+
+INTALL
+------
+All you have to do is to rename mobile_iform.info -> YOUR_THEME_NAME.info
+and rename all occurrences of mobile_iform -> YOUR_THEME_NAME in template.php and theme-settings.php

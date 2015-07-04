@@ -1,0 +1,296 @@
+<?php
+// $Id$
+
+/**
+ * Implementation of hook_perm().
+ */
+function species_account_gallery_perm() {
+  return array('administer species accounts');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function species_account_gallery_menu() {
+  $items = array();
+  $items['species_gallery/%sag_term'] = array(
+    'title' => t('Species Accounts'),
+    'file' => 'species_account_gallery.pages.inc',
+    'page callback' => 'sag_species_gallery',
+    'access arguments' => array('access content'),
+    'page arguments' => array(1)
+  );
+  $items['species_gallery'] = array(
+    'title' => t('Species Accounts'),
+    'file' => 'species_account_gallery.pages.inc',
+    'description' => t('Browse the species gallery.'),
+    'page callback' => 'sag_species_gallery',
+    'access arguments' => array('access content'),
+    'type' => MENU_NORMAL_ITEM,
+    'menu_name' => 'primary-links'
+  );
+  $items['admin/settings/species_account_gallery'] = array(
+    'title' => t('Species account gallery'),
+    'file' => 'species_account_gallery.admin.inc',
+    'description' => t('Change settings for the species account gallery.'),
+    'page callback' => 'drupal_get_form', 
+    'page arguments' => array('species_account_gallery_settings_form'),
+    'access arguments' => array('administer species accounts'),
+  );
+  $items['species_gallery/ajax'] = array(
+    'title' => t('Species account gallery ajax'),
+    'file' => 'species_account_gallery.pages.inc',
+    'page callback' => 'sag_tree_ajax', 
+    'access arguments' => array('access content'),
+    'type'=>'MENU_CALLBACK'
+  );
+  return $items;
+}
+
+/**
+ * Menu load function to load a term from the menu path, allowing pages to be created which 
+ * display certain branches of the species hierarchy.
+ * @param string $term Term to load
+ * @return int Term ID or false if not found.
+ */
+function sag_term_load($term) {
+  $vid = sag_get_vid();
+  $db_result = db_query(db_rewrite_sql("SELECT t.tid FROM {term_data} t ".
+      "WHERE LOWER(t.name) = LOWER('%s') AND t.vid=%d", 't', 'tid'), trim(urldecode($term)), $vid);
+  if ($result = db_fetch_object($db_result)) {
+    return $result->tid;
+  } else
+    return false;
+}
+
+/**
+ * Retrieve the vocabulary ID for the one to use for generating the gallery hierarchy. If the variable
+ * does not exist, we look for a vocab with the default title of Taxonomic hierarchy to use.
+ */
+function sag_get_vid() {
+  $vid = variable_get('sag_vid', 0);
+  if (!$vid && ($vocab = db_fetch_object(db_query("select vid from {vocabulary} where name='Taxonomic hierarchy'")))) {
+    $vid = $vocab->vid;
+    variable_set('sag_vid', $vid);
+  }
+  return (int)$vid;
+}
+
+function species_account_gallery_theme() {
+  $theme = array();
+  $theme["gallery_tree"] = array(
+    'arguments' => array('tree' => NULL)
+  );
+  return $theme;
+}
+
+function theme_gallery_tree($tree, $hide) {
+  if ($tree) {
+    $hideStyle=$hide ? ' style="display: none;"' : '';
+    $r = "<ul class=\"species-gallery-list\"$hideStyle>\n";
+    // loop through the tree nodes in this level (not the same as Drupal nodes!)
+    foreach($tree as $treenode) {
+      $tid = $treenode['tid'];
+      if ($treenode['has_children']) 
+        $class = variable_get('sag_load_mode', 'full') === 'full' ? '' : 'not-loaded';        
+      else 
+        $class = 'leaf';
+      if (isset($treenode['label'])) {
+        $r .= "<li class=\"species-gallery-header $class\">";
+        $label = "<span class=\"gallery-label $class\" id=\"tid-$tid\">".$treenode['label']."</span>";
+        // if node is a leaf node, then can create a link to the associated node
+        if (!$treenode['has_children']) {
+          $termnodes = db_query("select tn.nid from {term_node} tn ".
+              "inner join {node} n on n.nid=tn.nid and n.type<>'image' ".
+              "where tn.tid=%d", $tid);
+          if ($termnodes->num_rows===1) {
+            $termnode = db_fetch_object($termnodes);
+            $r .= '<a href="'.url('node/'.$termnode->nid).'">'.$label.'</a>';
+            // blank out the label since it has been output
+            $label = '';
+          }
+        } 
+        $r .= $label;
+      }
+      if (!empty($treenode['description'])) {
+        $r .= '<fieldset class="collapsible collapsed taxon-info"><legend class="info">i</legend>';
+        $r .= '<div>'.$treenode['description'].'</div>';
+        $r .= '</fieldset>';
+      }
+      if (isset($treenode['images'])) {
+        $gallery = variable_get('sag_gallery_mode', 'fancybox');
+        $r .= "<ul class=\"gallery-images\">\n";
+        foreach($treenode['images'] as $img) {
+          $largeUrl = imagecache_create_url('large', $img['filepath'], FALSE, $absolute);
+          $smallUrl = imagecache_create_url('thumbnail', $img['filepath'], FALSE, false);
+          $elem = theme('imagecache', 'thumbnail', $img['filepath'], 'Species image', t('Click to enlarge'), array('class' => 'lazy imagecache imagecache-thumbnail'));
+          $elem = str_replace($smallUrl, base_path() . drupal_get_path('module', 'species_account_gallery') . '/grey.gif', $elem);
+          $elem = str_replace('src="', 'data-original="'.$smallUrl.'" src="', $elem);
+          $r .= "<li class=\"species-gallery-image\"><a href=\"$largeUrl\" class=\"$gallery\">$elem</a>";
+          if (variable_get('sag_gallery_mode', 'fancybox')==='highslide' && (!empty($img['field_credits_value']) || !empty($img['field_caption_value']))) {
+            $caption = array();
+            if (!empty($img['field_credits_value'])) 
+              $caption[] = t('Photo by @person', array('@person' => $img['field_credits_value']));
+            if (!empty($img['field_caption_value']))             
+              $caption[] = $img['field_caption_value'];
+            $caption = implode('<br/>', $caption);
+            $r .= "<div class=\"highslide-caption\">$caption</div>";
+          }
+          $r .= '</li>';
+        }
+        $r .= "</ul>\n";
+      }
+      if (isset($treenode['children'])) 
+        $r .= theme('gallery_tree', $treenode['children']);
+      if (isset($treenode['label'])) 
+        $r .= '</li>';
+    }
+    $r .= "</ul>\n";
+    return $r;
+  } else {
+    return '';
+  }
+}
+
+/**
+ * Function to convert the output of a call to taxonomy_get_nested_tree into a simplified structure suitable for
+ * theming the output of the tree from.
+ * @return Array A nested array of tree items.
+ */
+function gallery_tree($items, $parents=array(), $nameGroup='') {
+  $skip = explode(',', variable_get('sag_hide_ranks', ''));
+  $breaks = explode(',', variable_get('sag_page_break_ranks', ''));
+  $nameGroups = explode("\n", variable_get('sag_ranks_combine', ''));
+  $r = array();
+  // keep the name group so we can ensure that adjacent hierarchy items get it reset properly
+  $origNameGroup = $nameGroup;
+  foreach($items as $item) {
+    $nameGroup = $origNameGroup;
+    $treenode = array();
+    // create a label for the current item. If it should be a link to another page, then
+    // make it an anchor.
+    if (in_array($item->description, $breaks)) 
+      $label = l($item->name, 'species_gallery/'.urlencode($item->name));
+    else
+      $label = $item->name; 
+    $line = array();
+    if (empty($nameGroup)) {
+      foreach($nameGroups as $group) {
+        if (strpos($group, '{'.$item->description.'}')!==false) {
+          // rank is part of a name group format
+          $nameGroup = $group;
+        }
+      }
+    }
+    // look for this taxon rank in the group of names. If the name is supposed to be there
+    // but isn't then the name group will get missed out.
+    if (!empty($nameGroup) && strpos($nameGroup, '{'.$item->description.'}')!==false) {
+      $nameGroup = str_replace('{'.$item->description.'}', $label, $nameGroup);
+      if (strpos($nameGroup, '{')===false) {
+        // $nameGroup is now complete as there are no more tokens to replace
+        $treenode['label'] = str_replace(array('[',']'), '', $nameGroup);
+        // reset it
+        $nameGroup = '';
+      }
+    } elseif (!empty($nameGroup)) {
+      // this means we have a nameGroup that is not properly completed, e.g. we have skipped a level in the taxonomic hierarchy
+      // so, remove any optional levels in the name group (which are wrapped in [])
+      $compulsoryNameGroup = preg_replace('/\[.+{.+}\]/', '', $nameGroup);
+      // is the name group now complete?
+      if (strpos($compulsoryNameGroup, '{')===false) {
+        // The compulsory part of nameGroup is now complete as there are no more tokens to replace
+        $treenode['label'] = $compulsoryNameGroup;
+        // reset it
+        $nameGroup = '';
+      }
+    } elseif (!$item->description || !in_array($item->description, $skip)) {
+      $treenode['label'] = $label;
+      $nameGroup = '';
+    } // else we are skipping this label and progressing to the children
+    if (isset($treenode['label']))
+      $treenode['tid'] = $item->tid;
+    $treenode['has_children'] = $item->has_children;
+    // mark the node if it is the very bottom level
+    //if (!isset($treenode['children']))
+    //  $treenode['leaf'] = true;
+    // Load the children if there are any
+    if (isset($item->children) && 
+        // don't load if breaking to new page after this node, unless the label was skipped which overrides the breaks
+        (!in_array($item->description, $breaks) || !isset($treenode['label'])) &&
+        // don't load down levels if using AJAX to populate levels, unless we haven't built the full label yet
+        (variable_get('sag_load_mode', 'full')!=='ajax' || !isset($treenode['label']))) {
+      // push this item onto the list of parents, so when we ask the children to build themselves they have a full list available
+      $parents[] = array('tid'=>$item->tid, 'name'=>$item->name, 'description'=>$item->description);
+      if (isset($treenode['label']))
+        $treenode['children'] = gallery_tree($item->children, $parents, $nameGroup);
+      else 
+        // this is a skipped level. So merge all the children of this level into one list.
+        $r = array_merge($r, gallery_tree($item->children, $parents, $nameGroup));
+      // take the current item back off the list of parents.
+      array_pop($parents);
+    }
+    // if we are outputting a label, then we might want to output associated node content such as description or images.
+    if (isset($treenode['label'])) {
+      $sql = 'SELECT f.filename, f.filepath, cti.field_credits_value, cti.field_caption_value '.
+          'FROM {term_node} tn '.          
+          'INNER JOIN {content_type_image} cti on cti.nid=tn.nid '.
+          'INNER JOIN {files} f ON f.fid=cti.field_image_fid '.
+          'WHERE tn.tid=%d';
+      if (variable_get('sag_max_image_weight', '')!=='') 
+        $sql .= ' AND cti.field_weight_value<='.variable_get('sag_max_image_weight', '');
+      $sql .= ' ORDER BY cti.field_weight_value ASC';
+      if (variable_get('sag_max_image_count', '')!=='') 
+        $sql .= ' LIMIT '.variable_get('sag_max_image_count', '');
+      $imgs = db_query($sql, $item->tid);
+      $imgList = array();
+      while ($img=db_fetch_array($imgs)) {
+        $imgList[] = $img;
+      }
+      $treenode['images']=$imgList;
+      $sql = 'SELECT n.title, nr.body '.
+          'FROM {term_node} tn '.          
+          'INNER JOIN {node} n on n.nid=tn.nid AND n.type=\'higher_taxon\''.
+          'INNER JOIN {node_revisions} nr ON nr.nid=n.nid '.
+          'WHERE tn.tid=%d';
+      if ($nr = db_fetch_object(db_query($sql, $item->tid))) {
+        $treenode['description'] = $nr->body;
+        $treenode['label'] = $nr->title;
+      }
+    }
+    $r[] = $treenode;
+  }
+  return $r;
+}
+
+function _sag_get_term_parents(&$terms) {
+  $last = $terms[count($terms)-1];
+  if ($term=db_fetch_object(db_query('SELECT td.tid, COALESCE(n.title, td.name) as name, td.name as path FROM {term_data} td '.
+      'INNER JOIN {term_hierarchy} th ON th.parent=td.tid AND th.tid=%d '.
+      'LEFT JOIN {term_node} tn ON tn.tid=td.tid '.
+      'LEFT JOIN {node} n ON n.nid=tn.nid', $last->tid))) {
+    $terms[]=$term;
+    if (count($terms)<10)
+      _sag_get_term_parents($terms);
+  }
+}
+
+function sag_set_term_breadcrumb($tid, $current) {
+  $terms = array(db_fetch_object(db_query('SELECT td.tid, COALESCE(n.title, td.name) as name, td.name as path FROM {term_data} td '.
+      'LEFT JOIN {term_node} tn ON tn.tid=td.tid '.
+      'LEFT JOIN {node} n ON n.nid=tn.nid '.      
+      'WHERE td.tid = %d', $tid)));
+  _sag_get_term_parents($terms);
+  $breadcrumb = array();
+  $parents = array_reverse($terms);
+  // drop current term as we don't want it to link
+  array_pop($parents);
+  foreach ($parents as $parent) {
+    $path = preg_replace('/[^a-zA-Z0-9\/]/', '-', $parent->path);
+    $breadcrumb[] = l($parent->name, "species_gallery/$path");
+  }
+  // add current term as static label
+  $breadcrumb[] = $current;
+  drupal_set_breadcrumb($breadcrumb);
+}
+
+?>

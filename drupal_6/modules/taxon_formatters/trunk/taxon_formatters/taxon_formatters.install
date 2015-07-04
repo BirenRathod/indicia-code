@@ -1,0 +1,63 @@
+<?php
+
+/*
+ * Implementation of hook_install().
+ */
+function taxon_formatters_install() {
+  watchdog('install', 'taxon_formatters');
+  drupal_install_schema('taxon_formatters');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function taxon_formatters_uninstall() {
+  drupal_uninstall_schema('taxon_formatters');
+}
+
+/**
+ * Implementation of hook_enable().
+ */
+function taxon_formatters_enable() {
+  
+}
+
+/**
+ * Implementation of hook_disable().
+ */
+function taxon_formatters_disable() {
+  
+}
+
+function taxon_formatters_schema() {
+  $schema['taxon_formatters_preset'] = array(
+    'fields' => array(
+      'presetid' => array(
+        'description' => t('The primary identifier for a taxon_formatters_preset.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'presetname' => array(
+        'description' => t('The primary identifier for a node.'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => t('The type of formatter.'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'settings' => array(
+        'description' => t('The JSON config for the formatter.'),
+        'type' => 'text',
+        'length' => 8000,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('presetid'),
+  );
+  return $schema;
+}

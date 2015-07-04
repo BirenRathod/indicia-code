@@ -1,0 +1,9 @@
+<?php
+
+function tabbed_data_entry_form_enable() {
+  drupal_set_message(t('You have activated a feature which contains some Indicia pages. Please visit '.
+      '<a href="'.url('admin/build/features/indicia').'">Indicia Features Review</a> to check the settings that are specific '.
+      'to the site.'), 'warning');
+}
+
+?>

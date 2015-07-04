@@ -1,0 +1,9 @@
+<?php
+
+function single_multi_record_entry_system_enable() {
+  drupal_set_message(t('You have activated a feature which contains some Indicia pages. Please visit '.
+      '<a href="'.url('admin/build/features/indicia').'">Indicia Features Review</a> to check the settings that are specific '.
+      'to the site.'), 'warning');
+}
+
+?>

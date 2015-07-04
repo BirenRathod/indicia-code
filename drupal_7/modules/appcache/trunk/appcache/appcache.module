@@ -1,0 +1,123 @@
+<?php
+
+/**
+ * @file
+ * Create and administer an HTML5 offline "appcache" to allow access to your
+ * site while disconnected from the internet.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function appcache_menu() {
+  $items = array();
+
+  $items['manifest.appcache'] = array(
+    'title' => 'HTML5 Application Cache Manifest',
+    'page callback' => 'appcache_manifest',
+    'delivery callback' => 'appcache_manifest_deliver',
+    'access arguments' => array('access appcache'),
+    'file' => 'appcache.manifest.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['appcache-offline'] = array(
+    'title' => 'Connection is offline',
+    'page callback' => 'appcache_offline',
+    'delivery callback' => 'appcache_offline_deliver',
+    'access arguments' => array('access appcache'),
+    'file' => 'appcache.pages.inc',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['admin/config/services/appcache'] = array(
+    'title' => 'HTML5 application cache',
+    'description' => 'Configure the resources that are able to be cached for offline access.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('appcache_settings_form'),
+    'access arguments' => array('administer appcache'),
+    'file' => 'appcache.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function appcache_permission() {
+  return array(
+    'access appcache' => array(
+      'title' => t('Access site using HTML5 offline cache'),
+    ),
+    'administer appcache' => array(
+      'title' => t('Administer HTML5 offline cache settings'),
+    ),
+  );
+}
+
+/**
+ * Delivery callback for an HTML5 Application manifest.
+ */
+function appcache_manifest_deliver($page_callback_result) {
+  // There was some error building the manifest, so return a normal HTML page.
+  if (is_int($page_callback_result)) {
+    drupal_deliver_html_page($page_callback_result);
+    return;
+  }
+
+  // Ensure that the right content type is set for the manifest and that
+  // browsers never cache it.
+  drupal_add_http_header('Content-Type', 'text/cache-manifest; charset=utf8');
+  drupal_add_http_header('Cache-Control', 'max-age=0, must-revalidate');
+  print $page_callback_result;
+}
+
+/**
+ * Delivery callback for the site offline page.
+ */
+function appcache_offline_deliver($page_callback_result) {
+  // There was some error building the offline page, return a normal HTML page.
+  if (is_int($page_callback_result)) {
+    drupal_deliver_html_page($page_callback_result);
+    return;
+  }
+
+  print $page_callback_result;
+}
+
+/**
+ * Clear the cached version of the application manifest.
+ */
+function appcache_cache_clear() {
+  cache_clear_all('appcache_version', 'cache');
+}
+
+/**
+ * Implements hook_appcache_fallback().
+ */
+function appcache_appcache_fallback() {
+  return variable_get('appcache_fallback', "");
+}
+
+/**
+ * Implements hook_appcache_network().
+ */
+function appcache_appcache_network() {
+  return variable_get('appcache_network', "");
+}
+
+/**
+ * Implements hook_appcache_cache().
+ */
+function appcache_appcache_cache() {
+  return variable_get('appcache_cache', "");
+}
+
+/**
+ * Implements hook_appcache_cache_query().
+ */
+function appcache_appcache_cache_query() {
+  return variable_get('appcache_cache_query', "");
+}
+

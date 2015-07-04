@@ -1,0 +1,65 @@
+<?php
+
+/**
+* Implementation of hook_perm.
+* Declare an online recording permission and a data admin permission. 
+* @return array An array of valid permissions for the module
+*/
+function indicia_quickstart_perm() {
+  return array('online recording', 'indicia data admin');
+}
+
+/**
+* Implementation of hook_link_alter
+* Remove add comment link from teaser, so it doesn't appear in node views.
+**/
+function indicia_quickstart_link_alter(&$links, $node){
+  if( arg(0) == 'node' && is_numeric(arg(1)) ){
+    return; // halt if full page view
+  } elseif( ! empty($links['comment_add']) ){
+    unset($links['comment_add']);
+  }
+}
+
+/** 
+ * Implementation of hook_menu.
+ * Declares a simple link for my account, otherwise the link is different per user id. Also
+ * declares a standard page for setting up some default settings for reports.
+ */
+function indicia_quickstart_menu() {
+  $items['my-account'] = array(
+    'page callback' => 'my_account',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('post comments'), // anyone logged in
+  );
+  $items['admin/settings/iform/other'] = array(
+    'title' => t('Other settings'),
+    'file' => 'indicia_quickstart.admin.inc',
+    'description' => t('Other settings for Indicia.'),
+    'page callback' => 'drupal_get_form', 
+    'page arguments' => array('indicia_quickstart_other_settings_form'),
+    'access arguments' => array('create iform'),
+    'type' => MENU_LOCAL_TASK,
+    'weight'=>10
+  );
+  return $items;
+}
+
+/**
+ * Proxy the form request from the menu to the inc file, otherwise Drupal_get_form cannot find the inc file.
+ */
+function indicia_quickstart_other_settings_form() {
+  require_once('indicia_quickstart.admin.inc');
+  return indicia_quickstart_other_settings_form_inc();
+}
+
+/**
+ * Redirect the my-account path to the user/n/edit page.
+ */
+function my_account() {
+  global $user;
+  if (module_exists('my_account_data_summary'))
+    drupal_goto('user/'.$user->uid.'/my_account_data');
+  else
+    drupal_goto('user/'.$user->uid.'/edit');
+}

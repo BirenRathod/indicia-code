@@ -1,0 +1,6 @@
+; $Id$
+name = NBN Atlas Map Formatter
+description = "Defines a formatter for the taxon formatters module that can display NBN Atlas Grade maps."
+core = 7.x
+package = Fields
+dependencies[] = taxon_formatters

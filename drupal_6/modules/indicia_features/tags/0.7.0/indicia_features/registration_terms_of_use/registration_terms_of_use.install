@@ -1,0 +1,15 @@
+<?php
+
+function registration_terms_of_use_enable() {
+  $query = db_fetch_object(db_query('select nid from {uuid_node} where uuid=\'682dd184-bac2-11e0-aa82-1f3dd472bc58\''));
+  variable_set('terms_of_use_node_id', $query->nid);
+  variable_set('terms_of_use_pick_node_id', 'I prefer to specify the node id');
+  variable_set('terms_of_use_node_title', 'Terms of Use');
+  variable_set('terms_of_use_fieldset_name', 'Terms of Use');
+  variable_set('terms_of_use_checkbox_label', 'I agree with these terms.');
+  drupal_set_message('The terms of use will now be displayed on the user registration page for this site. '.
+      'You can configure the terms of use that are displayed by editing the content on '.
+      '<a href="'.url('terms_of_use').'">this page</a>.');
+}
+
+?>

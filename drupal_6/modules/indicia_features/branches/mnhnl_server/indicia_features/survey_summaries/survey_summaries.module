@@ -1,0 +1,193 @@
+<?php
+
+include_once('survey_summaries.features.inc');
+
+/**
+ * Implement hook_nodeapi
+ * Trap view of survey summary nodes so we can format our own output.
+ */
+function survey_summaries_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  if ($node->type==='survey_summary')
+    switch ($op) {
+      case 'view':
+        $node->content=array(
+          'myfield'=>array(
+            '#value'=>survey_summary_build($node)
+          )
+        );
+        break; 
+    }
+}
+
+function survey_summary_build($node) {
+  iform_load_helpers(array('report_helper'));
+  // force our page to expire when its ready, as Drupal normally leaves expired content till the next node save
+  db_query("DELETE FROM {cache} WHERE expire != %d AND expire < %d and cid='%s'", CACHE_PERMANENT, time(), 'survey-summary-'.$node->nid);
+  // Can we use a cached version of the page
+  if ($cacheData=cache_get('survey-summary-'.$node->nid)) {
+    $r = $cacheData->data['r'];
+    report_helper::$javascript = $cacheData->data['javascript'];
+    report_helper::$onload_javascript = $cacheData->data['onload_javascript'];
+    report_helper::$late_javascript = $cacheData->data['late_javascript'];
+    report_helper::$required_resources = $cacheData->data['resources'];    
+  } else {
+    $surveyId=$node->field_survey_id[0]['value'];
+    $readAuth = report_helper::get_read_auth(variable_get('indicia_website_id', 0), variable_get('indicia_password', ''));
+    $arr = helper_base::explode_lines($node->field_survey_summary_output[0]['value']);
+    $r = '<div id="node-body">'.$node->content['body']['#value'].'<div id="survey-summary" class="ui-clearfix">';
+    $currentBlock='';
+    $currentOptions=array();
+    foreach($arr as $item) {
+      if (preg_match('/^\[(?P<ctrl>.+)\]$/', $item, $matches)) {
+        if ($fn) 
+          $r .= survey_summary_output_block($fn, $readAuth, $surveyId, $currentOptions);
+        $fn = 'survey_summary_'.$matches['ctrl'];
+        $currentOptions=array();
+      } elseif (preg_match('/^@(?P<key>.+)=(?P<value>.+)$/', $item, $matches)) {
+        $currentOptions[$matches['key']]=$matches['value'];
+      }
+    }
+    if ($fn) 
+      $r .= survey_summary_output_block($fn, $readAuth, $surveyId, $currentOptions);
+    report_helper::add_resource('defaultStylesheet');
+    $r .= '</div>';
+    // Cache the form, including the javascript and resources
+    $cacheData = array(
+      'r'=>$r,
+      'javascript'=>report_helper::$javascript,
+      'onload_javascript'=>report_helper::$onload_javascript,
+      'late_javascript'=>report_helper::$late_javascript,
+      'resources'=>report_helper::$required_resources
+    );    
+    // We only set a short cache timeout so the form is fairly current, and readAuths don't expire.
+    cache_set('survey-summary-'.$node->nid, $cacheData, 'cache', time()+300);
+  }
+  handle_resources();
+  return $r;
+}
+
+
+function survey_summary_output_block($fn, $readAuth, $surveyId, $options) {
+  $classes=array('survey-summary-panel');
+  if (isset($options['class']))
+    $classes[]=$options['class'];
+  $r = '<div id="'.$fn.'" class="'.implode(' ', $classes).'"';
+  $style = array();
+  if (isset($options['width']))
+    $style[] = 'width: '.$options['width'].'px;';
+  if (isset($options['height']))
+    $style[] = 'height: '.$options['height'].'px;';
+  if (count($style))
+    $r .= ' style="'.implode(' ', $style).'"';
+  $r .= '>';
+  $r .= $fn($readAuth, $surveyId, $options);
+  $r .= '</div>';
+  return $r;
+}
+
+function survey_summary_latest_photos($readAuth, $surveyId, $currentOptions) {
+  $options = array_merge(array(
+    'itemsPerPage'=>4,
+    'galleryColCount'=>4,
+    'date_from'=>'',
+    'date_to'=>'',
+  ), $currentOptions);
+  return '<h3>Photos</h3>'.report_helper::report_grid(array(
+    'id'=>'latest-photos',
+    'readAuth' => $readAuth,
+    'dataSource'=>'library/occurrence_images/occurrence_image_list',
+    'itemsPerPage' => $options['itemsPerPage'],
+    'columns' => array(
+      array(
+        'fieldname' => 'path',
+        'template' => '<div class="gallery-item"><a class="fancybox" href="{imageFolder}{path}"><img src="{imageFolder}thumb-{path}" title="{caption}" alt="{caption}"/><br/>{species}</a></div>'
+      )
+    ),
+    'includeAllColumns' => false,
+    'headers' => false,
+    'galleryColCount' => $options['galleryColCount'],
+    'extraParams' => array(
+      'date_from'=>$options['date_from'],
+      'date_to'=>$options['date_to'],
+      'survey_id'=>$surveyId,
+      'taxon_group_id'=>'',
+      'smpattrs'=>'',
+      'occattrs'=>''
+    )
+  ));
+}
+
+function survey_summary_recorder_league($readAuth, $surveyId, $currentOptions) {
+  $options = array_merge(array(
+    'itemsPerPage'=>10,
+    'date_from'=>'',
+    'date_to'=>'',
+  ), $currentOptions);
+  global $user;
+  profile_load_profile($user);
+  return '<h3>Recorder League</h3>'.report_helper::report_grid(array(
+    'id'=>'recorder-league',
+    'readAuth' => $readAuth,
+    'dataSource'=>'library/users/species_and_occurrence_counts',
+    'itemsPerPage' => $options['itemsPerPage'],
+    'columns' => array(
+      array('fieldname'=>'username','display'=>'Recorder'),
+      array('fieldname'=>'taxa','display'=>'Species'),
+      array('fieldname'=>'occurrences','display'=>'Records'),
+      array('fieldname'=>'groups','display'=>'Species Groups'),
+    ),
+    'includeAllColumns' => false,
+    'rowClass'=>'{me}',
+    'extraParams' => array(
+      'date_from'=>$options['date_from'],
+      'date_to'=>$options['date_to'],
+      'survey_id'=>$surveyId,
+      'taxon_group_id'=>'',
+      'smpattrs'=>'',
+      'occattrs'=>'',
+      'currentUser'=>$user->profile_indicia_user_id
+    )
+  ));
+  
+}
+
+function survey_summary_participation_map($readAuth, $surveyId, $currentOptions) {
+  iform_load_helpers(array('map_helper'));
+  $wmsUrl = map_helper::$geoserver_url.'wms';
+  $options = array_merge(array(
+    'presetLayers' => array('osm'),
+    'editLayer' => false,
+    'layers' => array('distLayer'),
+    'initial_lat'=>variable_get('indicia_map_centroid_lat', 54),
+    'initial_long'=>variable_get('indicia_map_centroid_long', -2),
+    'initial_zoom'=>variable_get('indicia_map_zoom', 5),
+    'width'=>'100%',
+    'height'=>'500',
+    'standardControls'=>array('panZoomBar'),
+    'featureType'=>'indicia:cache_occurrences'
+  ), $currentOptions);
+  map_helper::$onload_javascript .= "\n    var filter='survey_id=".$surveyId."';";
+  map_helper::$onload_javascript .= "\n    var distLayer = new OpenLayers.Layer.WMS(
+          '".lang::get('Participants')."',
+          '$wmsUrl',
+          {layers: '".$options['featureType']."', transparent: true, CQL_FILTER: filter $style},
+          {isBaseLayer: false, sphericalMercator: true, singleTile: true}
+    );\n";
+  $olOptions = array('theme' => map_helper::$js_path . 'theme/default/style.css');
+  return '<h3>Records Map</h3>'.map_helper::map_panel($options, $olOptions);
+}
+
+function survey_summary_total($readAuth, $surveyId, $currentOptions) {
+  $options = array_merge(array(
+    'date_from'=>'',
+    'date_to'=>'',
+    'template'=>'{species_count} species found so far!'
+  ), $currentOptions);
+  return report_helper::freeform_report(array(
+    'readAuth' => $readAuth,
+    'dataSource'=>'library/totals/species_and_occurrence_counts',
+    'bands'=>array(array('content'=>$options['template'])),
+    'extraParams'=>array('date_from'=>$options['date_from'], 'date_to'=>$options['date_to'], 'survey_id'=>$surveyId)
+  ));
+  
+}
