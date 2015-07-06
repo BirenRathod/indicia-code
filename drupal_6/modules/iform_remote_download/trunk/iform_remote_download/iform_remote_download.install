@@ -1,8 +1,0 @@
-<?php
-
-function iform_remote_download_uninstall() {
-  variable_del('iform_default_download_report');
-  variable_del('iform_default_download_format');
-  variable_del('iform_default_download_smpattrs');
-  variable_del('iform_default_download_occattrs');
-}

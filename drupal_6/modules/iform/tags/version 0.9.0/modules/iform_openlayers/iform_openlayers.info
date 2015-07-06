@@ -1,7 +1,0 @@
-; $Id$
-name = "Indicia Openlayers"
-description = "A module allowing the configuration of the OpenLayers file downloaded by the Iform module."
-core = 6.x
-package = "Indicia"
-dependencies[] = "iform"
-version = "6.x-1.0"

@@ -1,6 +1,0 @@
-; $Id$
-name = NBN Map Formatter
-description = "Defines a formatter for the taxon formatters module that can display NBN Gateway maps."
-dependencies[] = taxon_formatters
-package = Taxon CCK
-core = 6.x

@@ -1,8 +1,0 @@
-; $Id$
-name = "Indicia User UI Options"
-description = "A module allowing creation of optional user interface behaviuor that is configured in the user account. E.g. allows a user to pick the map layers available for all forms."
-core = 6.x
-package = "Indicia"
-dependencies[] = "iform"
-dependencies[] = "easy_login"
-version = "6.x-1.0"

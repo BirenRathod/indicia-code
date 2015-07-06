@@ -1,6 +1,0 @@
-; $Id$
-name = NBN Designations Formatter
-description = "Defines a formatter for the taxon formatters module that can display taxon designation information from the NBN Web Services."
-dependencies[] = taxon_formatters
-package = Taxon CCK
-core = 6.x

@@ -1,7 +1,0 @@
-; $Id$
-name = Taxon Formatters
-description = "Defines a formatter that can display output from various taxonomic webservices based on the content of an underlying CCK taxon identifier field."
-dependencies[] = content
-dependencies[] = taxon_identifier
-package = Taxon CCK
-core = 6.x

@@ -1,1 +1,0 @@
-var appcache_online = false;

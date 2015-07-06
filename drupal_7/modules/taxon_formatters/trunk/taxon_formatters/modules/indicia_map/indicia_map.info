@@ -1,9 +1,0 @@
-; $Id$
-name = Indicia Map Formatter
-description = "Defines a formatter for the taxon formatters module that can display Indicia maps.
-Settings for the warehouse connection are taken from the iForm module."
-core = 7.x
-package = Fields
-dependencies[] = taxon_formatters
-dependencies[] = iform
-files[] = indicia_map.module
